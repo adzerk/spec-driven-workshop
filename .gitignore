@@ -1,0 +1,36 @@
+# JVM
+tooling
+tooling/
+pom.xml.asc
+*.jar
+*.class
+lib/
+classes/
+target/
+
+# Temp files
+*.orig
+*~
+.*.swp
+.*.swo
+*.tmp
+*.bak
+
+# Editors and tooling
+TAGS
+tags
+.tags
+.idea
+.classpath
+.project
+.settings
+recording.jfr
+*.iml
+.lsp/.cache/
+.clj-kondo/
+
+# Dev logging
+*.log
+
+# OS X
+.DS_Store

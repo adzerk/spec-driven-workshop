@@ -1,0 +1,110 @@
+
+#PATH := $(PWD)/tooling/clojure/bin:$(PATH)
+#export PATH
+SHELL := env PATH='$(PATH)' $(shell which bash)
+
+# Early bindings
+# ---------------------------------------------------------------
+tooling_openjdk_dir =tooling/jdk-21.0.7+6
+#tooling_clojure_dir =tooling/clojure
+java_sources = $(shell if [ -d ./src/java ]; then find ./src/java -type f -name '*.java'; fi)
+java_bench_sources = $(shell if [ -d ./src/jmh ]; then find ./src/jmh -type f -name '*.java'; fi)
+adopt_openjdk_version_dir =jdk-21.0.7+6
+#clojure_version =1.11.1.1155
+adopt_openjdk_baseurl =https://github.com/adoptium/temurin21-binaries/releases/download
+openjml_url =https://github.com/OpenJML/OpenJML/releases/download/21-0.23
+
+# Let's create a 'newline' binding for use in warnings/errors/etc.
+define mknewline
+
+
+endef
+
+
+ifeq ($(shell uname -s),Linux)
+	jhome_slug =
+	java_bin_dir =bin
+	adopt_openjdk_version_slug =OpenJDK21U-jdk_x64_linux_hotspot_21.0.7_6.tar.gz
+	adopt_openjdk_sha =974d3acef0b7193f541acb61b76e81670890551366625d4f6ca01b91ac152ce0
+	jdk_check_sha =echo "$(adopt_openjdk_sha) $(adopt_openjdk_version_slug)" | sha256sum -c -
+	#clojure_cli_sha =7eb9aa2ecc6c0abfdb1578d4b99ca7c2055111aafa38524a12a6fb76fe01f30b
+	#clj_check_sha =echo "$(clojure_cli_sha) clojure-linux-install.sh" | sha256sum -c -
+	openjml_version =openjml-ubuntu-22.04-21-0.23.zip
+else
+	# Assumes MacOS
+	ifeq ($(shell uname -m),arm64)
+		adopt_openjdk_version_slug =OpenJDK21U-jdk_aarch64_mac_hotspot_21.0.7_6.tar.gz
+		adopt_openjdk_sha =6fcb25f3f71a5ff245dec4ebe8bd5c643f179a5cd0a61c08e58a8c65914d2f97
+	else
+		adopt_openjdk_version_slug =OpenJDK21U-jdk_x64_mac_hotspot_21.0.7_6.tar.gz
+		adopt_openjdk_sha =be0ef2ec933970e7f682a109313b9eb2bf5b6fcd0a7d2b2d744867b2c2539a52
+	endif
+	jhome_slug =Contents/Home
+	java_bin_dir =$(jhome_slug)/bin
+	## note extra whitespace necessary for MacOS
+	jdk_check_sha =echo "$(adopt_openjdk_sha)  $(adopt_openjdk_version_slug)" | shasum -a 256 -c -
+	openjml_version =openjml-macos-14-21-0.23.zip
+	# This is the checksum for the clojure-tools archive
+	#clojure_cli_sha =6e5caaebdc20cee84460a6d378437db7a4f877b445d53a11cb246eac044cc727
+	## note extra whitespace necessary for MacOS
+	#clj_check_sha =echo "$(clojure_cli_sha)  clojure-tools-$(clojure_version).tar.gz" | shasum -a 256 -c -
+endif
+
+# If this project has submodules, check their status
+# Issue warnings if there is submodule drift from what is marked in the submodule/git index
+git_submodule_status = $(shell git submodule status --recursive)
+modified_submodules = $(shell [[ "$(git_submodule_status)" =~ \+([0-9a-f]{5,40}) ]] && echo "You have modified submodules. Consider: git submodule update --recursive")
+not_initd_submodules = $(shell [[ "$(git_submodule_status)" =~ -([0-9a-f]{5,40}) ]] && echo "You have submodules that need to be initialized. Consider: git submodule update --init --recursive")
+conflicted_submodules = $(shell [[ "$(git_submodule_status)" =~ U([0-9a-f]{5,40}) ]] && echo "You have merge-conflicts in your submodules! Look at status/summary for more details")
+
+
+# Tools/Executables
+# ---------------------------------------------------------------
+PY ?= $(shell which python)
+PIP ?= $(shell which pip)
+JAVA ?= $(shell if [ -d "$(tooling_openjdk_dir)" ]; then echo "$(PWD)/$(tooling_openjdk_dir)/$(java_bin_dir)/java"; else which java; fi)
+JAVAC ?= $(shell if [ -d "$(tooling_openjdk_dir)" ]; then echo "$(PWD)/$(tooling_openjdk_dir)/$(java_bin_dir)/javac"; else which javac; fi)
+JAR ?= $(shell if [ -d "$(tooling_openjdk_dir)" ]; then echo "$(PWD)/$(tooling_openjdk_dir)/$(java_bin_dir)/jar"; else which jar; fi)
+MVN ?= $(shell which mvn)
+#CLJ ?= JAVA_CMD=$(JAVA) $(shell if [ -d "$(tooling_clojure_dir)" ]; then echo "$(PWD)/$(tooling_clojure_dir)/bin/clj"; else which clj; fi)
+#CLOJURE ?= JAVA_CMD=$(JAVA) $(shell if [ -d "$(tooling_clojure_dir)" ]; then echo "$(PWD)/$(tooling_clojure_dir)/bin/clojure"; else which clojure; fi)
+
+# Vars/Settings
+# ---------------------------------------------------------------
+
+# This is a var you can use for JAVA_HOME if needed for tooling/targets
+JHOME =$(shell if [ -d "$(tooling_openjdk_dir)" ]; then echo "$(PWD)/$(tooling_openjdk_dir)/$(jhome_slug)"; else echo $(JAVA_HOME); fi)
+
+# Technically, we can run the $(shell ...) in the targets we need, but this lets you set CP per make invocation
+# We issue a warning here in case someone's Shell RC has inadvertently set the CLASSPATH
+ifdef CLASSPATH
+$(warning WARNING - This Makefile normally sets the CLASSPATH based on deps.edn, but you have overridden that with:$(mknewline)$(CLASSPATH)$(mknewline))
+endif
+CLASSPATH ?= $(shell $(CLOJURE) -Spath)
+
+JVM_LOG_FLAGS ?= -Xlog:gc*=debug:file=gc.log:utctime,uptime,tid,level:filecount=10,filesize=128m
+JVM_JFR_FLAGS ?= -XX:StartFlightRecording=disk=true,dumponexit=true,filename=recording.jfr,maxsize=128m,maxage=1d,settings=profile,path-to-gc-roots=true
+JVM_DEBUG_FLAGS ?= $(JVM_LOG_FLAGS) -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=heapdump.hprof $(JVM_JFR_FLAGS)
+
+# See the ZGC wiki: https://wiki.openjdk.java.net/display/zgc/Main#Main-JVMOptions
+# See the Shenandoah wiki: https://wiki.openjdk.java.net/display/shenandoah/Main#Main-Basicconfiguration
+JVM_G1GC_FLAGS ?= -XX:+UseG1GC
+JVM_SHENGC_FLAGS ?= -XX:+UseShenandoahGC -XX:+UseTransparentHugePages
+JVM_ZGC_FLAGS ?= -XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:+UseLargePages -XX:+UseLargePagesInMetaspace -XX:+UseTransparentHugePages
+
+
+# Issue Warnings
+# ---------------------------------------------------------------
+ifneq ($(modified_submodules),)
+$(warning WARNING - $(modified_submodules))
+endif
+ifneq ($(not_initd_submodules),)
+$(warning WARNING - $(not_initd_submodules))
+endif
+ifneq ($(conflicted_submodules),)
+$(warning WARNING - $(conflicted_submodules))
+endif
+ifeq ($(findstring $(tooling_openjdk_dir),$(JAVA)),)
+$(warning WARNING - You are using System-level binaries and not base tooling, eg: $(JAVA))
+endif
+
