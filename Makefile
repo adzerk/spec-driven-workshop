@@ -11,7 +11,7 @@ JVM_MEM ?=1G
 JVM_FLAGS ?= -Xms $(JVM_MEM) -Xmx $(JVM_MEM) -XX:+UseNUMA -XX:+AlwaysPreTouch
 # -XX:+UseStringCache -XX:+OptimizeStringConcat
 
-java_sources = $(shell if [ -d ./src ]; then find ./src -type f -name '*.java'; fi)
+java_sources = $(shell if [ -d ./src/main ]; then find ./src/main -type f -name '*.java'; fi)
 
 ifeq ($(shell uname -s),Linux)
 	# you might also want:
@@ -65,10 +65,10 @@ check: format
 test:
 	@mvn test
 
+.PHONY : check-openjml
+check-openjml:
+	@tooling/openjml/openjml --esc --progress -cp $(shell mvn dependency:build-classpath -Dmdep.outputFile=/dev/stdout -q) $(java_sources)
 #TODO Needs args in the correct position via compiler or exec plugin; Or call direct with classpath from mvn
-#.PHONY : check-openjml
-#check-openjml:
-#	tooling/openjml/openjml --esc --progress $(java_sources)
 #	#@mvn -P openjml -e -X verify
 
 .PHONY : doc
