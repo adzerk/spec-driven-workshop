@@ -49,9 +49,9 @@ XTRA_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 tooling:
 	$(MAKE) $(join tooling_,$(shell uname -s))
 
-#.PHONY : repl
-#repl:
-#	@$(CLJ) -A:dev
+.PHONY : repl
+repl:
+	@mvn -P clojure clojure:repl
 
 .PHONY : format
 format:

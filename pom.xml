@@ -52,6 +52,7 @@
 
   <profiles>
     <profile>
+      <!-- TODO: This profile is to scope OpenJML in isolation, but it's not actively used -->
       <id>openjml</id>
       <build>
         <plugins>
@@ -132,6 +133,27 @@
           </plugin>
         </plugins>
       </build>
+    </profile>
+    <profile>
+      <!-- Dev-time profile for Clojure REPL access -->
+      <id>clojure</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>com.theoryinpractise</groupId>
+            <artifactId>clojure-maven-plugin</artifactId>
+            <version>1.9.3</version>
+            <extensions>true</extensions>
+          </plugin>
+        </plugins>
+      </build>
+      <dependencies>
+        <dependency>
+          <groupId>org.clojure</groupId>
+          <artifactId>clojure</artifactId>
+          <version>1.12.4</version>
+        </dependency>
+      </dependencies>
     </profile>
   </profiles>
 
