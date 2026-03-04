@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+
+set -eu
+
+host_cargo_home="${CARGO_HOME:-$HOME/.cargo/}"
+host_rustup_home="${RUSTUP_HOME:-$HOME/.rustup}"
+host_npm_local_home="${NPM_LOCAL_HOME:-$HOME/.npm-packages}"
+
+bwrap \
+	--unshare-all \
+	--new-session \
+    --die-with-parent \
+	--ro-bind  /usr   /usr   \
+	--ro-bind  /lib   /lib   \
+	--ro-bind  /lib64 /lib64 \
+	--ro-bind  /bin   /bin \
+	--ro-bind  /etc/alternatives /etc/alternatives \
+    --dev-bind /dev/null /dev/null \
+	--tmpfs    /tmp \
+	--proc     /proc \
+	--ro-bind /run/systemd/resolve/stub-resolv.conf /run/systemd/resolve/stub-resolv.conf \
+    --ro-bind "$host_rustup_home" "/rustup" \
+	--setenv  RUSTUP_HOME "/rustup" \
+	--bind    "$host_cargo_home"  "/cargo" \
+	--setenv  CARGO_HOME  "/cargo" \
+    --ro-bind "$host_npm_local_home" "/npm" \
+    --setenv  NPM_LOCAL_HOME "/npm" \
+    --ro-bind "$HOME/.local" "/local" \
+    --ro-bind "$HOME/bin"    "/opt" \
+	--setenv  PATH "/opt:/local/bin:/npm/bin:/cargo/bin:/usr/bin:/bin" \
+    --setenv  EDITOR "vim" \
+	--bind    `pwd` /app \
+	--chdir   /app \
+    opencode "$@"
+    #bash
+
