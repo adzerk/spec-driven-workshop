@@ -69,8 +69,8 @@ check: format
 test:
 	@mvn test
 
-.PHONY : check-openjml
-check-openjml:
+.PHONY : check-jml
+check-jml: check
 	@tooling/openjml/openjml --esc --progress -cp $(shell mvn dependency:build-classpath -Dmdep.outputFile=/dev/stdout -q) $(java_sources)
 #TODO Needs args in the correct position via compiler or exec plugin; Or call direct with classpath from mvn
 #	#@mvn -P openjml -e -X verify
