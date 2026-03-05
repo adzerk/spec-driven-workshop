@@ -221,7 +221,7 @@
         <version>${spotbugs.maven.plugin.version}</version>
         <configuration>
           <effort>Max</effort>
-          <threshold>Low</threshold>
+          <threshold>Medium</threshold>
           <failOnError>true</failOnError>
           <!--
           <includeFilterFile>${session.executionRootDirectory}/spotbugs-include.xml</includeFilterFile>

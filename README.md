@@ -48,6 +48,7 @@ You are not required to use this utility, but it might serve as a helpful exampl
 Other alternatives include:
  * [VirtualBox VM](https://www.virtualbox.org/)
  * [firejail](https://github.com/netblue30/firejail)
- * a microVM, [boxlite](https://boxlite.ai/)
+ * a microVM
+ * [boxlite](https://boxlite.ai/)
  * [OpenSandbox](https://github.com/alibaba/OpenSandbox/tree/main/examples/claude-code)
 
