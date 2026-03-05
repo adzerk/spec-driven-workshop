@@ -38,3 +38,16 @@ You must run these commands first before using the project.  Please have a good 
  * `make uberjar`   - create an executable Uberjar of the project
  * `make run`       - run/execute the Uberjar artifact
 
+### Using Bubblewrap / `bwrap`
+
+Bubblewrap is a lightweight, unpriviledged tool for constructing sandboxes.
+This repo contains a Bash script, `bw-opencode`, that launches opencode within a Bubblewrap sandbox.
+
+You are not required to use this utility, but it might serve as a helpful example.
+
+Other alternatives include:
+ * [VirtualBox VM](https://www.virtualbox.org/)
+ * [firejail](https://github.com/netblue30/firejail)
+ * a microVM, [boxlite](https://boxlite.ai/)
+ * [OpenSandbox](https://github.com/alibaba/OpenSandbox/tree/main/examples/claude-code)
+
