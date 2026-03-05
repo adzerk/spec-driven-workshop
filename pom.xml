@@ -51,8 +51,9 @@
   </dependencies>
 
   <profiles>
+
+    <!-- TODO: This profile is to scope OpenJML in isolation, but it's not actively used -->
     <profile>
-      <!-- TODO: This profile is to scope OpenJML in isolation, but it's not actively used -->
       <id>openjml</id>
       <build>
         <plugins>
@@ -74,9 +75,10 @@
         </plugins>
       </build>
     </profile>
+
+    <!-- This profile configures Google Errorprone as part of the compilation phase.
+         Errorprone is a static analyzer that extends Java's type checking analysis. -->
     <profile>
-      <!-- This profile configures Google Errorprone as part of the compilation phase.
-           Errorprone is a static analyzer that extends Java's type checking analysis. -->
       <id>errorprone</id>
       <build>
         <plugins>
@@ -134,11 +136,17 @@
         </plugins>
       </build>
     </profile>
+
+    <!-- Dev-time profile for interactive use / Clojure REPL access -->
     <profile>
-      <!-- Dev-time profile for Clojure REPL access -->
-      <id>clojure</id>
+      <id>dev</id>
       <build>
         <plugins>
+          <plugin>
+            <groupId>com.github.johnpoth</groupId>
+            <artifactId>jshell-maven-plugin</artifactId>
+            <version>1.4</version>
+          </plugin>
           <plugin>
             <groupId>com.theoryinpractise</groupId>
             <artifactId>clojure-maven-plugin</artifactId>

@@ -51,7 +51,11 @@ tooling:
 
 .PHONY : repl
 repl:
-	@mvn -P clojure clojure:repl
+	@mvn -P dev clojure:repl
+
+.PHONY : jshell
+jshell:
+	@mvn -P dev jshell:run
 
 .PHONY : format
 format:
