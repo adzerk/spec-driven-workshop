@@ -11,6 +11,9 @@ JVM_MEM ?=1G
 JVM_FLAGS ?= -Xms $(JVM_MEM) -Xmx $(JVM_MEM) -XX:+UseNUMA -XX:+AlwaysPreTouch
 # -XX:+UseStringCache -XX:+OptimizeStringConcat
 
+RUN_JAR_ARGS ?= -jar -Dfile.encoding=UTF-8
+UBERJAR_PATH = target/spec-driven-demo-1.0.0-SNAPSHOT.jar
+
 java_sources = $(shell if [ -d ./src/main ]; then find ./src/main -type f -name '*.java'; fi)
 
 ifeq ($(shell uname -s),Linux)
@@ -51,23 +54,23 @@ tooling:
 
 .PHONY : repl
 repl:
-	@mvn -P dev clojure:repl
+	@$(MVN) -P dev clojure:repl
 
 .PHONY : jshell
 jshell:
-	@mvn -P dev jshell:run
+	@$(MVN) -P dev jshell:run
 
 .PHONY : format
 format:
-	@mvn spotless:apply
+	@$(MVN) spotless:apply
 
 .PHONY : check
 check: format
-	@mvn -P errorprone verify
+	@$(MVN) -P errorprone verify
 
 .PHONY : test
 test:
-	@mvn test
+	@$(MVN) test
 
 .PHONY : check-jml
 check-jml: check
@@ -77,21 +80,19 @@ check-jml: check
 
 .PHONY : doc
 doc:
-	@mvn javadoc:javadoc
+	@$(MVN) javadoc:javadoc
 
-#TODO Needs Shade plugin
-#.PHONY : uberjar
-#uberjar:
-#	@mvn package
+.PHONY : uberjar
+uberjar:
+	@$(MVN) package
 
-#TODO Needs uberjar working
-#.PHONY : run
-#run:
-#	@$(JAVA) $(RUN_JAR_ARGS) $(UBERJAR_PATH)
+.PHONY : run
+run:
+	@$(JAVA) $(RUN_JAR_ARGS) $(UBERJAR_PATH)
 
 .PHONY : clean
 clean:
-	@mvn clean
+	@$(MVN) clean
 
 #.PHONY : prep-env
 #prep-env:

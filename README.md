@@ -35,4 +35,6 @@ You must run these commands first before using the project.  Please have a good 
  * `make doc`       - produces API / Javadoc documentation
  * `make jshell`    - launches an interactive JShell (full Classpath access)
  * `make repl`      - launches a Clojure REPL (full Classpath access)
+ * `make uberjar`   - create an executable Uberjar of the project
+ * `make run`       - run/execute the Uberjar artifact
 
