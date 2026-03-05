@@ -15,6 +15,7 @@ public final class App {
      * @ requires x > 0
      * @ requires y >= x
      * @ ensures /ret > y
+     * @ pure
      */
     public static int increasingSum(final int x, final int y) {
         assert x <= y : "Args were not in increasing order: " + x + " and " + y;
