@@ -148,6 +148,7 @@ tooling_Darwin:
 	&& $(jdk_check_sha) \
 	&& tar -xvzf $(adopt_openjdk_version_slug) \
 	&& rm $(adopt_openjdk_version_slug) \
+	&& ln -s jdk-21.0.7+6/Contents/Home/bin jdk-21.0.7+6/bin \
 	&& mkdir openjml \
 	&& cd openjml \
 	&& wget $(openjml_url)/$(openjml_version) \
