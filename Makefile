@@ -54,23 +54,23 @@ tooling:
 
 .PHONY : repl
 repl:
-	@$(MVN) -P dev clojure:repl
+	@JAVA_HOME=$(JHOME) $(MVN) -P dev clojure:repl
 
 .PHONY : jshell
 jshell:
-	@$(MVN) -P dev jshell:run
+	@JAVA_HOME=$(JHOME) $(MVN) -P dev jshell:run
 
 .PHONY : format
 format:
-	@$(MVN) spotless:apply
+	@JAVA_HOME=$(JHOME) $(MVN) help:system
 
 .PHONY : check
 check: format
-	@$(MVN) -P errorprone verify
+	@JAVA_HOME=$(JHOME) $(MVN) -P errorprone verify
 
 .PHONY : test
 test:
-	@$(MVN) test
+	@JAVA_HOME=$(JHOME) $(MVN) test
 
 .PHONY : check-jml
 check-jml: check
@@ -80,11 +80,11 @@ check-jml: check
 
 .PHONY : doc
 doc:
-	@$(MVN) javadoc:javadoc
+	@JAVA_HOME=$(JHOME) $(MVN) javadoc:javadoc
 
 .PHONY : uberjar
 uberjar:
-	@$(MVN) package
+	@JAVA_HOME=$(JHOME) $(MVN) package
 
 .PHONY : run
 run:
@@ -92,7 +92,7 @@ run:
 
 .PHONY : clean
 clean:
-	@$(MVN) clean
+	@JAVA_HOME=$(JHOME) $(MVN) clean
 
 #.PHONY : prep-env
 #prep-env:
@@ -148,7 +148,7 @@ tooling_Darwin:
 	&& $(jdk_check_sha) \
 	&& tar -xvzf $(adopt_openjdk_version_slug) \
 	&& rm $(adopt_openjdk_version_slug) \
-	&& ln -s jdk-21.0.7+6/Contents/Home/bin jdk-21.0.7+6/bin \
+	&& ln -s `pwd`/jdk-21.0.7+6/Contents/Home/bin `pwd`/jdk-21.0.7+6/bin \
 	&& mkdir openjml \
 	&& cd openjml \
 	&& wget $(openjml_url)/$(openjml_version) \
