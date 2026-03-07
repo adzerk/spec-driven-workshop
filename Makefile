@@ -62,7 +62,7 @@ jshell:
 
 .PHONY : format
 format:
-	@JAVA_HOME=$(JHOME) $(MVN) help:system
+	@JAVA_HOME=$(JHOME) $(MVN) spotless:apply
 
 .PHONY : check
 check: format
