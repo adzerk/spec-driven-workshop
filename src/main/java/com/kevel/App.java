@@ -3,6 +3,10 @@ package com.kevel;
 public final class App {
     private App() {}
 
+    // Even code without JML specifications are analyzed and checked by OpenJML.
+    // We can explicitly disable "Extended Static Checking" (esc) and
+    // Runtime Assertion Checking (rac) for methods we want OpenJML to skip.
+
     // @ skipesc skiprac
     public static void main(String[] args) {
         System.out.println("10 and 20 make: " + increasingSum(10, 20));
