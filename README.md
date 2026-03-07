@@ -46,7 +46,7 @@ This repo contains a Bash script, `bw-opencode`, that launches opencode within a
 You are not required to use this utility, but it might serve as a helpful example.
 
 Other alternatives include:
- * [VirtualBox VM](https://www.virtualbox.org/)
+ * [VirtualBox VM](https://www.virtualbox.org/) / [Vagrant](https://developer.hashicorp.com/vagrant)
  * [firejail](https://github.com/netblue30/firejail)
  * a microVM
  * [boxlite](https://boxlite.ai/)
