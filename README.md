@@ -25,6 +25,20 @@ You must run these commands first before using the project.  Please have a good 
  * `make tooling`
  * `make check`
 
+#### General tooling info
+
+ * The project uses Maven for managing dependences and workflow plugins
+ * Code formatting with Spotless; Currently using the Palantir-modified Google Style
+ * Unit tests via JUnit5, property-based tests via jqwik, concurrency tests via Fray -- all integrated through JUnit5
+ * Static analysis via Google Errorprone, Spotbugs, and find-security-bugs
+ * Extended checking and verification with OpenJML
+
+As you adapt the spec-driven techniques to other languages and runtimes, you should have similar tooling coverage.
+For example, in Rust you might use Cargo, rustfmt, proptest/quickcheck/bolero for property-based tests,
+Shuttle for concurrency tests, clippy and cargo-audit for additional static analysis, and Kani/Prusti/Creusot for verication.
+Kani integrates directly with Bolero (so that might make the tooling a bit easier) and presumably the test suite
+would be run with Miri.
+
 ### Important Make targets
 
  * `make tooling`   - downloads all required tools for this project
