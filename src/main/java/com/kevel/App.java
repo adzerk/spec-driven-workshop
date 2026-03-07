@@ -3,6 +3,7 @@ package com.kevel;
 public final class App {
     private App() {}
 
+    // @ skipesc skiprac
     public static void main(String[] args) {
         System.out.println("10 and 20 make: " + increasingSum(10, 20));
         System.out.println("20 and 10 make: " + increasingSum(20, 10) + " <-- look at that!");
@@ -11,12 +12,14 @@ public final class App {
     /** Given two positive numbers in increasing order,
      *  return their sum if they're divisible,
      *  otherwise return y+1.
-     *
-     * @ requires x > 0
-     * @ requires y >= x
-     * @ ensures /ret > y
-     * @ pure
      */
+    /*@
+        requires x > 0;
+        requires y >= x;
+        ensures \result > y;
+        pure
+        //code_java_math // Uncomment to silence overflow/underflow
+    @*/
     public static int increasingSum(final int x, final int y) {
         assert x <= y : "Args were not in increasing order: " + x + " and " + y;
 
