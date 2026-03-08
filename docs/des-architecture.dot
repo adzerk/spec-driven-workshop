@@ -1,0 +1,52 @@
+digraph des_architecture {
+  graph [
+    rankdir=LR,
+    bgcolor="white",
+    labelloc="t",
+    label="Discrete-Event Simulation (DES) Library - Architecture",
+    fontname="Helvetica"
+  ];
+
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#F7F7F7",
+    color="#333333",
+    fontname="Helvetica",
+    fontsize=11
+  ];
+
+  edge [
+    color="#333333",
+    fontname="Helvetica",
+    fontsize=10
+  ];
+
+  user [label="User Code\n(domain model + actions)", fillcolor="#E8F0FE"];
+
+  sim [label="Simulation<S>\n(engine)", fillcolor="#E6F4EA"];
+  pq [label="PriorityQueue<Event<S>>\n(order: time, sequence)"];
+
+  event [label="Event<S>\n(time, sequence, id, action)"];
+  eventId [label="EventId\n(value)"];
+
+  unary [label="UnaryOperator<S>\n(action: S -> S)"];
+  predicate [label="Predicate<Simulation<S>>\n(stop condition)"];
+
+  step [label="StepResult<S>\n(previousTime,newTime,\nexecutedEventId,\npreviousState,newState)"];
+  run [label="RunResult<S>\n(steps,start,end,\nfinalState,stopped,\nstepResults)"];
+
+  user -> sim [label="scheduleAt / scheduleIn\nstep / run* "];
+  user -> unary [label="provides"];
+  user -> predicate [label="provides"];
+
+  unary -> event [label="stored as"];
+  eventId -> event [label="identified by"];
+
+  sim -> pq [label="enqueue / dequeue"];
+  pq -> event [label="next by (time,sequence)"];
+  sim -> step [label="returns (per step)"];
+  sim -> run [label="returns (per run)"];
+  step -> run [label="trace: stepResults"];
+  predicate -> sim [label="queried during runUntil"];
+}
