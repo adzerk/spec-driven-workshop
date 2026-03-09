@@ -1,6 +1,7 @@
 ## Context
 
-The repository currently contains a minimal arithmetic example that demonstrates JML contracts and property-based testing, but it does not yet show how specification-driven development scales to a richer domain with state, ordering, and execution semantics. A discrete-event simulation library is a good next step because it is small enough to stay teachable while still exposing meaningful invariants: time must not move backward, equal-time events need deterministic ordering, and all execution must be explainable in terms of pure state transitions.
+The repository currently contains a minimal arithmetic example that demonstrates JML contracts and property-based testing, but it does not yet show how specification-driven development scales to a richer domain with state, ordering, and execution semantics.
+A discrete-event simulation library is a good next step because it is small enough to stay teachable while still exposing meaningful invariants: time must not move backward, equal-time events need deterministic total-ordering, and all execution must be explainable in terms of pure state transitions.
 
 This change should fit the existing workshop stack: Java 21, JUnit 5, jqwik, static analysis, and formal-style contract thinking. The implementation should stay intentionally small, single-threaded, and dependency-free.
 
@@ -9,8 +10,10 @@ This change should fit the existing workshop stack: Java 21, JUnit 5, jqwik, sta
 **Goals:**
 - Provide a compact public API for creating simulations, scheduling work, stepping execution, and running to defined boundaries.
 - Preserve deterministic execution through explicit ordering by `(time, sequence)`.
+- Construct the core library in a functional style and use pure methods and functions.
 - Use `long` ticks as the time model for v1 to avoid floating-point ambiguity.
-- Document preconditions, postconditions, invariants, and error behavior in a way that supports the workshop's specification-driven teaching goals.
+- Design the library around single-threaded execution.
+- Document all preconditions, postconditions, invariants, and error behavior in a way that supports the workshop's specification-driven teaching goals.
 - Validate the design with both example-based tests and jqwik properties, including state-machine-oriented checks.
 
 **Non-Goals:**
@@ -57,6 +60,12 @@ This change should fit the existing workshop stack: Java 21, JUnit 5, jqwik, sta
   - Unit tests only: rejected because they would underspec the richer state space.
   - Property tests only: rejected because API ergonomics and failure modes are easier to express in direct example tests.
 
+### Use modern Java 21 features
+- Decision: When selecting implementation options, favor using modern Java features like records, sealed interfaces, switch expressions, and generics.
+- Rationale: Modern Java language features make code more readable and maintainable.
+- Alternatives considered:
+  - Basic features: rejected because the engineers understand how to use more advanced language features
+
 ## Risks / Trade-offs
 
 - [Users pass mutable state or impure actions] -> Mitigation: document the functional-style expectation clearly and keep deterministic engine semantics separate from purity guarantees.
@@ -71,6 +80,7 @@ This is an additive change with no production deployment concerns. The implement
 1. Add the new `com.kevel.des` package and core public types.
 2. Implement creation, scheduling, stepping, and run semantics.
 3. Add contract-oriented Javadoc and assertions or checks for invalid usage.
+4. Ensure the code is defensive and enforces all pre-conditions, post-conditions, and invariants.
 4. Add unit and jqwik tests.
 5. Add a minimal example and ensure the existing workshop checks still pass.
 
@@ -79,5 +89,5 @@ Rollback is straightforward: remove the new package and associated tests if the 
 ## Open Questions
 
 - Should `step()` and run operations mutate the `Simulation<S>` instance in place or return derived result objects while keeping the simulation mutable internally? The current direction is mutable internals with deterministic behavior and explicit result records.
-- Should `peekNext()` expose the full event record or a reduced public view to avoid encouraging dependence on internal sequencing details?
-- How much JML annotation should v1 include in addition to Javadoc contracts, given the workshop may want both lightweight and heavier-weight specification examples?
+- Should `peekNext()` expose the full event record or a reduced public view to avoid encouraging dependence on internal sequencing details? The current direction is to expose the full event record.
+- How much JML annotation should v1 include in addition to Javadoc contracts, given the workshop may want both lightweight and heavier-weight specification examples?  The current direction is only document invariants and not include JML annotations.
