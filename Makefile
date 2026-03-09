@@ -72,17 +72,16 @@ check: format
 test:
 	@JAVA_HOME=$(JHOME) $(MVN) test
 
-.PHONY : check-jml
-check-jml: check
+.PHONY : check-jml-only
+check-jml-only:
 	@tooling/openjml/openjml --esc --progress -cp $(shell mvn dependency:build-classpath -Dmdep.outputFile=/dev/stdout -q) --dirs src/main
 	# This next line works too, leaving it as an example
 	#@tooling/openjml/openjml --esc --progress -cp $(shell mvn dependency:build-classpath -Dmdep.outputFile=/dev/stdout -q) $(java_sources)
 	#TODO Needs args in the correct position via compiler or exec plugin, which is why we're calling it directly ^^
 	#@mvn -P openjml -e -X verify
 
-.PHONY : check-jml-only
-check-jml-only:
-	@tooling/openjml/openjml --esc --progress -cp $(shell mvn dependency:build-classpath -Dmdep.outputFile=/dev/stdout -q) --dirs src/main
+.PHONY : check-jml
+check-jml: check check-jml-only
 
 .PHONY : doc
 doc:
