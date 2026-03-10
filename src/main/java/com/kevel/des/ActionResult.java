@@ -38,7 +38,7 @@ public record ActionResult<S>(S newState, List<ScheduledEvent<S>> scheduledEvent
     public ActionResult {
         Objects.requireNonNull(newState, "newState must not be null");
         Objects.requireNonNull(scheduledEvents, "scheduledEvents must not be null");
-        scheduledEvents.forEach(event -> Objects.requireNonNull(event, "scheduled event must not be null"));
+        // List.copyOf() creates a defensive copy and rejects null elements with NullPointerException
         scheduledEvents = List.copyOf(scheduledEvents);
     }
 
