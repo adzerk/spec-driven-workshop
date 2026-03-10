@@ -92,7 +92,7 @@ public final class Simulation<S> {
     }
 
     /**
-     * Schedules an event for an absolute simulation time.
+     * Schedules an event for an absolute simulation time, returning an EventId on success.
      *
      * <p>Preconditions: action is non-null and time is not in the past relative to current
      * simulation time.
@@ -182,7 +182,7 @@ public final class Simulation<S> {
      * Runs until queue is empty.
      *
      * <p>Postcondition: queue is empty at return and the returned result captures start/end times,
-     * executed steps, final state, and stop reason.
+     * executed steps, final state, and stop reason (if this was stopped by a condition).
      */
     // @ skipesc skiprac
     public RunResult<S> run() {

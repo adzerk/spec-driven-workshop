@@ -32,6 +32,14 @@ class SimulationPropertiesTest {
 
     @Property
     void modelBasedStateful_equivalentToReferenceEngine(@ForAll("schedules") List<ScheduleEntry> schedule) {
+        /* This is like a differential test against a model
+         * Below is a single-threaded reference implementation of the general logic for simulation;
+         * we might call this "an executable model"
+         *
+         * We then evolve the production code in src/main and confirm with property-testing
+         * that the core behavior always matches the model.
+         * This is commonly called "differential testing" and is common in lightweight formal methods
+         */
         Simulation<Integer> real = runSchedule(schedule);
         ReferenceResult reference = runReference(schedule);
 
