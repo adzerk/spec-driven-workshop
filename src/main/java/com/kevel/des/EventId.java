@@ -8,4 +8,11 @@ package com.kevel.des;
  * <p>Invariant: values assigned by {@link Simulation} are non-negative and unique within one
  * simulation instance.
  */
-public record EventId(long value) {}
+public record EventId(long value) {
+
+    public EventId {
+        if (value < 0) {
+            throw new IllegalArgumentException("value must be non-negative");
+        }
+    }
+}

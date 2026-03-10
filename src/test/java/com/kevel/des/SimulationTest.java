@@ -135,19 +135,25 @@ class SimulationTest {
     }
 
     @Test
-    void runVariants_coverDrainTimeBoundAndPredicateBoundaries() {
+    void run_drainsAllPendingEvents() {
         Simulation<Integer> drain = Simulation.create(0);
         drain.scheduleAt(1, s -> ActionResult.of(s + 1));
         drain.scheduleAt(2, s -> ActionResult.of(s + 1));
         RunResult<Integer> drained = drain.run();
         assertEquals(2L, drained.stepsExecuted());
         assertTrue(drain.isQueueEmpty());
+    }
 
+    @Test
+    void run_onEmptyQueueReturnsZeroStepResult() {
         Simulation<Integer> empty = Simulation.create(42);
         RunResult<Integer> emptyRun = empty.run();
         assertEquals(0L, emptyRun.stepsExecuted());
         assertEquals(42, emptyRun.finalState());
+    }
 
+    @Test
+    void runUntilTime_executesOnlyEligibleEvents() {
         Simulation<Integer> bounded = Simulation.create(0);
         bounded.scheduleAt(2, s -> ActionResult.of(s + 1));
         bounded.scheduleAt(5, s -> ActionResult.of(s + 1));
@@ -157,14 +163,20 @@ class SimulationTest {
         assertEquals(2, bounded.currentState());
         assertEquals(8L, bounded.peekNext().orElseThrow().time());
         assertThrows(IllegalArgumentException.class, () -> bounded.runUntilTime(4));
+    }
 
+    @Test
+    void runUntil_stopsWhenPredicateSatisfied() {
         Simulation<Integer> predicate = Simulation.create(0);
         predicate.scheduleAt(1, s -> ActionResult.of(s + 1));
         predicate.scheduleAt(2, s -> ActionResult.of(s + 1));
         RunResult<Integer> predicateResult = predicate.runUntil(s -> s >= 1);
         assertEquals(1L, predicateResult.stepsExecuted());
         assertEquals(1, predicate.currentState());
+    }
 
+    @Test
+    void runUntil_immediatePredicateSatisfactionExecutesZeroSteps() {
         Simulation<Integer> immediate = Simulation.create(10);
         immediate.scheduleAt(100, s -> ActionResult.of(s + 100));
         RunResult<Integer> immediateResult = immediate.runUntil(s -> s >= 10);
@@ -205,6 +217,36 @@ class SimulationTest {
         assertEquals(traceOne, traceTwo);
         assertEquals(first.currentState(), second.currentState());
         assertEquals(first.currentTime(), second.currentTime());
+    }
+
+    @Test
+    void scheduleIn_overflowFromModerateCurrentTime() {
+        Simulation<Integer> simulation = Simulation.create(0);
+        long midpoint = Long.MAX_VALUE / 2;
+        simulation.scheduleAt(midpoint, s -> ActionResult.of(s + 1));
+        simulation.step();
+        assertEquals(midpoint, simulation.currentTime());
+
+        // A delay that causes overflow when added to the moderate current time
+        assertThrows(ArithmeticException.class, () -> simulation.scheduleIn(midpoint + 2, s -> ActionResult.of(s)));
+    }
+
+    @Test
+    void actionProducedEvent_atExactlyCurrentTimeIsAccepted() {
+        Simulation<String> simulation = Simulation.create("start");
+        simulation.scheduleAt(
+                5,
+                s -> new ActionResult<>(
+                        s + "-A",
+                        List.of(new ActionResult.ScheduledEvent<>(5, inner -> ActionResult.of(inner + "-B")))));
+
+        simulation.step();
+        assertEquals("start-A", simulation.currentState());
+        assertTrue(simulation.peekNext().isPresent());
+        assertEquals(5L, simulation.peekNext().orElseThrow().time());
+
+        simulation.step();
+        assertEquals("start-A-B", simulation.currentState());
     }
 
     private static void scheduleScript(Simulation<String> simulation) {

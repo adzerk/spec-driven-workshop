@@ -1,5 +1,7 @@
 package com.kevel.des;
 
+import java.util.Objects;
+
 /**
  * Result of executing one simulation step.
  *
@@ -13,4 +15,14 @@ package com.kevel.des;
  * @param previousState state before executing the event action
  * @param newState state after executing the event action
  */
-public record StepResult<S>(long previousTime, long newTime, EventId eventId, S previousState, S newState) {}
+public record StepResult<S>(long previousTime, long newTime, EventId eventId, S previousState, S newState) {
+
+    public StepResult {
+        if (newTime < previousTime) {
+            throw new IllegalArgumentException("newTime must be >= previousTime");
+        }
+        Objects.requireNonNull(eventId, "eventId must not be null");
+        Objects.requireNonNull(previousState, "previousState must not be null");
+        Objects.requireNonNull(newState, "newState must not be null");
+    }
+}

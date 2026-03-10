@@ -31,6 +31,9 @@ public record ActionResult<S>(S newState, List<ScheduledEvent<S>> scheduledEvent
      */
     public record ScheduledEvent<S>(long time, Function<S, ActionResult<S>> action) {
         public ScheduledEvent {
+            if (time < 0) {
+                throw new IllegalArgumentException("time must be non-negative");
+            }
             Objects.requireNonNull(action, "action must not be null");
         }
     }

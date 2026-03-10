@@ -191,7 +191,7 @@ public final class Simulation<S> {
 
         while (!queue.isEmpty()) {
             step();
-            steps++;
+            steps = Math.addExact(steps, 1L);
         }
 
         return new RunResult<>(steps, startTime, currentTime, currentState, false);
@@ -219,7 +219,7 @@ public final class Simulation<S> {
         Event<S> next = queue.peek();
         while (next != null && next.time() <= targetTime) {
             step();
-            steps++;
+            steps = Math.addExact(steps, 1L);
             next = queue.peek();
         }
 
@@ -254,7 +254,7 @@ public final class Simulation<S> {
                 break;
             }
             step();
-            steps++;
+            steps = Math.addExact(steps, 1L);
         }
 
         return new RunResult<>(steps, startTime, currentTime, currentState, stoppedByCondition);

@@ -33,6 +33,12 @@ public record Event<S>(long time, long sequence, EventId eventId, Function<S, Ac
     /**
      * Compares events in deterministic total order by {@code (time, sequence)}.
      *
+     * <p>Note: this ordering is inconsistent with {@code equals()}. The record-generated
+     * {@code equals} compares all fields (including {@code eventId} and {@code action}), while
+     * {@code compareTo} uses only {@code (time, sequence)}. As a result, {@code compareTo}
+     * returning {@code 0} does not imply {@code equals} returns {@code true}. This record
+     * should not be used in {@link java.util.TreeSet} or {@link java.util.TreeMap}.
+     *
      * <p>Postcondition: returns a negative value when this event occurs earlier, positive when
      * later, and zero when both time and sequence are equal.
      */
@@ -44,5 +50,14 @@ public record Event<S>(long time, long sequence, EventId eventId, Function<S, Ac
             return timeOrder;
         }
         return Long.compare(this.sequence, other.sequence);
+    }
+
+    /**
+     * Returns a string representation excluding the {@code action} field, which typically
+     * renders as an uninformative lambda reference.
+     */
+    @Override
+    public String toString() {
+        return "Event[time=" + time + ", sequence=" + sequence + ", eventId=" + eventId + "]";
     }
 }

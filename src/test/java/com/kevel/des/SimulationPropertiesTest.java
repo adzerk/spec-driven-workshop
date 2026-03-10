@@ -47,9 +47,10 @@ class SimulationPropertiesTest {
         Arbitrary<Integer> time = Arbitraries.integers().between(0, 20);
         Arbitrary<Integer> delta = Arbitraries.integers().between(0, 5);
         Arbitrary<Integer> producedCount = Arbitraries.integers().between(0, 2);
+        Arbitrary<Boolean> useScheduleIn = Arbitraries.of(true, false);
 
-        return Combinators.combine(time, delta, producedCount)
-                .as(ScheduleEntry::new)
+        return Combinators.combine(time, delta, producedCount, useScheduleIn)
+                .as((t, d, p, u) -> new ScheduleEntry(t, d, p, u))
                 .list()
                 .ofMinSize(0)
                 .ofMaxSize(25);
@@ -57,9 +58,13 @@ class SimulationPropertiesTest {
 
     private static Simulation<Integer> runSchedule(List<ScheduleEntry> schedule) {
         Simulation<Integer> simulation = Simulation.create(0);
-        schedule.stream()
-                .sorted(Comparator.comparingInt(ScheduleEntry::time))
-                .forEach(entry -> simulation.scheduleAt(entry.time(), state -> eventAction(state, entry)));
+        schedule.stream().sorted(Comparator.comparingInt(ScheduleEntry::time)).forEach(entry -> {
+            if (entry.useScheduleIn()) {
+                simulation.scheduleIn(entry.time(), state -> eventAction(state, entry));
+            } else {
+                simulation.scheduleAt(entry.time(), state -> eventAction(state, entry));
+            }
+        });
         return simulation;
     }
 
@@ -114,14 +119,14 @@ class SimulationPropertiesTest {
 
             for (int i = 0; i < event.entry().producedCount(); i++) {
                 long producedTime = (long) event.entry().time() + event.entry().delta() + i;
-                queue.add(new ReferenceEvent(producedTime, sequence++, eventId++, new ScheduleEntry(0, 0, 0)));
+                queue.add(new ReferenceEvent(producedTime, sequence++, eventId++, new ScheduleEntry(0, 0, 0, false)));
             }
         }
 
         return new ReferenceResult(trace, time, state);
     }
 
-    private record ScheduleEntry(int time, int delta, int producedCount) {}
+    private record ScheduleEntry(int time, int delta, int producedCount, boolean useScheduleIn) {}
 
     private record ExecutionRecord(long time, long eventId, int newState) {}
 

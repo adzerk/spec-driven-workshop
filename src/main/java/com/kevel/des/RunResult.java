@@ -1,5 +1,7 @@
 package com.kevel.des;
 
+import java.util.Objects;
+
 /**
  * Result of a simulation run operation.
  *
@@ -12,5 +14,15 @@ package com.kevel.des;
  * @param finalState final simulation state at run end
  * @param stoppedByCondition true when stopped by a boundary condition rather than empty queue
  */
-public record RunResult<S>(
-        long stepsExecuted, long startTime, long endTime, S finalState, boolean stoppedByCondition) {}
+public record RunResult<S>(long stepsExecuted, long startTime, long endTime, S finalState, boolean stoppedByCondition) {
+
+    public RunResult {
+        if (stepsExecuted < 0) {
+            throw new IllegalArgumentException("stepsExecuted must be non-negative");
+        }
+        if (endTime < startTime) {
+            throw new IllegalArgumentException("endTime must be >= startTime");
+        }
+        Objects.requireNonNull(finalState, "finalState must not be null");
+    }
+}
