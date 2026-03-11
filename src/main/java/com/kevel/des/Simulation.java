@@ -39,6 +39,7 @@ public final class Simulation<S> {
     private long nextEventId;
     /*@ nullable @*/ private S currentState;
     private final PriorityQueue<Event<S>> queue;
+    private final ActionResult errorActionResult;
 
     // @ skipesc skiprac
     private Simulation(S initialState) {
@@ -47,6 +48,7 @@ public final class Simulation<S> {
         this.nextEventId = 0L;
         this.currentState = initialState;
         this.queue = new PriorityQueue<>();
+        this.errorActionResult = ActionResult.of(initialState);
     }
 
     /**
@@ -164,9 +166,18 @@ public final class Simulation<S> {
         Event<S> nextEvent = Objects.requireNonNull(queue.poll(), "queue poll must not be null");
         currentTime = nextEvent.time();
 
-        ActionResult<S> actionResult =
-                Objects.requireNonNull(nextEvent.action().apply(previousState), "action result must not be null");
-        currentState = actionResult.newState();
+        ActionResult<S> actionResult;
+        boolean isError = false;
+        try {
+            actionResult = nextEvent.action().apply(previousState);
+        } catch (Throwable t) {
+            isError = true;
+            actionResult = errorActionResult;
+        }
+
+        // The result of an action must be non-null
+        Objects.requireNonNull(actionResult, "action result must not be null");
+        currentState = isError ? currentState : actionResult.newState();
 
         for (ActionResult.ScheduledEvent<S> descriptor : actionResult.scheduledEvents()) {
             if (descriptor.time() < currentTime) {
