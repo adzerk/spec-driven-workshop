@@ -291,21 +291,16 @@ if [ -d "$OPENJML_DIR" ] && [ -d /opt/openjml-assets ]; then
     export OPENJML_SOLVERS="$OPENJML_DIR"
 fi
 
-# Copy Claude Code config from the read-only staging mount to writable paths.
-CLAUDE_HOME="/home/orchard/.claude"
-if [ -d /tmp/claude-host-config ]; then
-    mkdir -p "$CLAUDE_HOME"
-    cp -a /tmp/claude-host-config/. "$CLAUDE_HOME/"
-    chmod -R u+rwX "$CLAUDE_HOME"
-fi
+# Copy Claude Code user config from the read-only staging mount.
 if [ -f /tmp/claude-host-config.json ]; then
     cp /tmp/claude-host-config.json /home/orchard/.claude.json
     chmod u+rw /home/orchard/.claude.json
 fi
 
-# Write OAuth credentials from macOS Keychain (passed via env var) to the
-# Linux credential file. On Linux, Claude Code reads ~/.claude/.credentials.json
-# instead of the macOS Keychain.
+# Write OAuth credentials from macOS Keychain (passed via --env-file) to the
+# Linux credential file. On Linux without a system keyring, Claude Code reads
+# ~/.claude/.credentials.json as a plaintext fallback.
+CLAUDE_HOME="/home/orchard/.claude"
 if [ -n "${CLAUDE_CODE_KEYCHAIN_CREDS:-}" ]; then
     mkdir -p "$CLAUDE_HOME"
     echo "$CLAUDE_CODE_KEYCHAIN_CREDS" > "$CLAUDE_HOME/.credentials.json"

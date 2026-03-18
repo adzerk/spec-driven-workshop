@@ -82,14 +82,23 @@ if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
     CLAUDE_ENV+=(-e "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}")
 fi
 
-# Extract Claude Code OAuth token from macOS Keychain and pass it to the container.
-# Claude Code stores OAuth credentials in the keychain under "Claude Code-credentials".
-# We extract the access token and pass it as ANTHROPIC_AUTH_TOKEN (bearer token).
+# Extract Claude Code OAuth credentials from macOS Keychain and pass them to the
+# container via a temp file (not a -e env var, which would be visible in docker inspect).
+# Claude Code stores its OAuth session in the keychain under "Claude Code-credentials".
+# The entrypoint writes the credentials to ~/.claude/.credentials.json (Linux fallback).
 # Authenticate on the host first: run `claude` and complete the OAuth flow.
-if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
+# Note: OAuth tokens expire. Refreshed tokens are lost when the container exits,
+# but Claude Code will use the refresh token for the duration of the session.
+CREDS_ENV_FILE=""
+cleanup_creds() { [[ -n "$CREDS_ENV_FILE" ]] && rm -f "$CREDS_ENV_FILE"; }
+trap cleanup_creds EXIT
+
+if [[ -z "${ANTHROPIC_API_KEY:-}" ]] && command -v security &>/dev/null; then
     CLAUDE_CREDS_JSON=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null || true)
     if [[ -n "$CLAUDE_CREDS_JSON" ]]; then
-        CLAUDE_ENV+=(-e "CLAUDE_CODE_KEYCHAIN_CREDS=${CLAUDE_CREDS_JSON}")
+        CREDS_ENV_FILE=$(mktemp)
+        printf 'CLAUDE_CODE_KEYCHAIN_CREDS=%s\n' "$CLAUDE_CREDS_JSON" > "$CREDS_ENV_FILE"
+        chmod 600 "$CREDS_ENV_FILE"
         info "Extracted Claude Code OAuth credentials from macOS Keychain"
     else
         warn "No Claude Code credentials found in macOS Keychain."
@@ -97,15 +106,13 @@ if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
     fi
 fi
 
-# Mount Claude Code config files (settings, history, etc.) to a staging location.
-# The entrypoint copies them to writable paths so Claude Code can function.
-CLAUDE_AUTH_MOUNT=()
-if [[ -d "${HOME}/.claude" ]]; then
-    CLAUDE_AUTH_MOUNT=(-v "${HOME}/.claude:/tmp/claude-host-config:ro")
-    info "Mounting Claude Code config (read-only) from ~/.claude"
-fi
+# Mount Claude Code user config (.claude.json) to a staging location.
+# The entrypoint copies it to a writable path so Claude Code can function.
+# Only the top-level config is mounted — not ~/.claude/ (settings, history, etc.)
+# since credentials now come via the keychain injection above.
+CLAUDE_CONFIG_MOUNT=()
 if [[ -f "${HOME}/.claude.json" ]]; then
-    CLAUDE_AUTH_MOUNT+=(-v "${HOME}/.claude.json:/tmp/claude-host-config.json:ro")
+    CLAUDE_CONFIG_MOUNT=(-v "${HOME}/.claude.json:/tmp/claude-host-config.json:ro")
     info "Mounting Claude Code config from ~/.claude.json"
 fi
 
@@ -115,7 +122,8 @@ docker run \
     --name "$CONTAINER_NAME" \
     --hostname orchard \
     -v "${PROJECT_DIR}:/workspace" \
-    "${CLAUDE_AUTH_MOUNT[@]}" \
+    ${CLAUDE_CONFIG_MOUNT[@]+"${CLAUDE_CONFIG_MOUNT[@]}"} \
+    ${CREDS_ENV_FILE:+--env-file "$CREDS_ENV_FILE"} \
     --tmpfs /workspace/tooling/jdk-21.0.7+6:exec,uid=1000,gid=1000 \
     --tmpfs /workspace/tooling/openjml:exec,uid=1000,gid=1000 \
     -w /workspace \
@@ -123,6 +131,6 @@ docker run \
     --cap-drop ALL \
     --cap-add DAC_OVERRIDE \
     --cap-add FOWNER \
-    "${CLAUDE_ENV[@]}" \
+    ${CLAUDE_ENV[@]+"${CLAUDE_ENV[@]}"} \
     "$IMAGE_NAME" \
     "${@:-bash}"
