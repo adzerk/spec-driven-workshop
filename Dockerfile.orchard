@@ -294,7 +294,7 @@ fi
 # Copy Claude Code user config from the read-only staging mount.
 if [ -f /tmp/claude-host-config.json ]; then
     cp /tmp/claude-host-config.json /home/orchard/.claude.json
-    chmod u+rw /home/orchard/.claude.json
+    chmod 600 /home/orchard/.claude.json
 fi
 
 # Write OAuth credentials from macOS Keychain (passed via --env-file) to the
