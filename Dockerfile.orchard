@@ -303,6 +303,7 @@ fi
 CLAUDE_HOME="/home/orchard/.claude"
 if [ -n "${CLAUDE_CODE_KEYCHAIN_CREDS:-}" ]; then
     mkdir -p "$CLAUDE_HOME"
+    chmod 700 "$CLAUDE_HOME"
     echo "$CLAUDE_CODE_KEYCHAIN_CREDS" > "$CLAUDE_HOME/.credentials.json"
     chmod 600 "$CLAUDE_HOME/.credentials.json"
     # Don't leak the credentials into the process environment
