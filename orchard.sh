@@ -77,12 +77,45 @@ echo ""
 
 # The macOS tooling JDK can't run on Linux. We overlay it with a tmpfs
 # that the entrypoint populates with Linux JDK symlinks.
+CLAUDE_ENV=()
+if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+    CLAUDE_ENV+=(-e "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}")
+fi
+
+# Extract Claude Code OAuth token from macOS Keychain and pass it to the container.
+# Claude Code stores OAuth credentials in the keychain under "Claude Code-credentials".
+# We extract the access token and pass it as ANTHROPIC_AUTH_TOKEN (bearer token).
+# Authenticate on the host first: run `claude` and complete the OAuth flow.
+if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
+    CLAUDE_CREDS_JSON=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null || true)
+    if [[ -n "$CLAUDE_CREDS_JSON" ]]; then
+        CLAUDE_ENV+=(-e "CLAUDE_CODE_KEYCHAIN_CREDS=${CLAUDE_CREDS_JSON}")
+        info "Extracted Claude Code OAuth credentials from macOS Keychain"
+    else
+        warn "No Claude Code credentials found in macOS Keychain."
+        warn "Run 'claude' on the host and complete login first, or set ANTHROPIC_API_KEY."
+    fi
+fi
+
+# Mount Claude Code config files (settings, history, etc.) to a staging location.
+# The entrypoint copies them to writable paths so Claude Code can function.
+CLAUDE_AUTH_MOUNT=()
+if [[ -d "${HOME}/.claude" ]]; then
+    CLAUDE_AUTH_MOUNT=(-v "${HOME}/.claude:/tmp/claude-host-config:ro")
+    info "Mounting Claude Code config (read-only) from ~/.claude"
+fi
+if [[ -f "${HOME}/.claude.json" ]]; then
+    CLAUDE_AUTH_MOUNT+=(-v "${HOME}/.claude.json:/tmp/claude-host-config.json:ro")
+    info "Mounting Claude Code config from ~/.claude.json"
+fi
+
 docker run \
     --rm \
     -it \
     --name "$CONTAINER_NAME" \
     --hostname orchard \
     -v "${PROJECT_DIR}:/workspace" \
+    "${CLAUDE_AUTH_MOUNT[@]}" \
     --tmpfs /workspace/tooling/jdk-21.0.7+6:exec,uid=1000,gid=1000 \
     --tmpfs /workspace/tooling/openjml:exec,uid=1000,gid=1000 \
     -w /workspace \
@@ -90,5 +123,6 @@ docker run \
     --cap-drop ALL \
     --cap-add DAC_OVERRIDE \
     --cap-add FOWNER \
+    "${CLAUDE_ENV[@]}" \
     "$IMAGE_NAME" \
     "${@:-bash}"

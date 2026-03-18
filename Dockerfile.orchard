@@ -58,8 +58,8 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Install opencode and openspec
-RUN npm install -g opencode-ai@latest @fission-ai/openspec
+# Install opencode, openspec, and Claude Code
+RUN npm install -g opencode-ai@latest @fission-ai/openspec @anthropic-ai/claude-code
 
 # Build Fray JVMTI agent for linux-aarch64 (not published to Maven Central)
 # Then install it into the system Maven repo so the project can resolve it.
@@ -289,6 +289,29 @@ if [ -d "$OPENJML_DIR" ] && [ -d /opt/openjml-assets ]; then
 
     chmod -R u+rwX "$OPENJML_DIR"
     export OPENJML_SOLVERS="$OPENJML_DIR"
+fi
+
+# Copy Claude Code config from the read-only staging mount to writable paths.
+CLAUDE_HOME="/home/orchard/.claude"
+if [ -d /tmp/claude-host-config ]; then
+    mkdir -p "$CLAUDE_HOME"
+    cp -a /tmp/claude-host-config/. "$CLAUDE_HOME/"
+    chmod -R u+rwX "$CLAUDE_HOME"
+fi
+if [ -f /tmp/claude-host-config.json ]; then
+    cp /tmp/claude-host-config.json /home/orchard/.claude.json
+    chmod u+rw /home/orchard/.claude.json
+fi
+
+# Write OAuth credentials from macOS Keychain (passed via env var) to the
+# Linux credential file. On Linux, Claude Code reads ~/.claude/.credentials.json
+# instead of the macOS Keychain.
+if [ -n "${CLAUDE_CODE_KEYCHAIN_CREDS:-}" ]; then
+    mkdir -p "$CLAUDE_HOME"
+    echo "$CLAUDE_CODE_KEYCHAIN_CREDS" > "$CLAUDE_HOME/.credentials.json"
+    chmod 600 "$CLAUDE_HOME/.credentials.json"
+    # Don't leak the credentials into the process environment
+    unset CLAUDE_CODE_KEYCHAIN_CREDS
 fi
 
 # The Makefile uses `JHOME =` (not ?=), so env vars get ignored.
