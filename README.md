@@ -52,12 +52,25 @@ would be run with Miri.
  * `make uberjar`   - create an executable Uberjar of the project
  * `make run`       - run/execute the Uberjar artifact
 
-### Using Bubblewrap / `bwrap`
+### Using Orchard (macOS / Docker)
 
-Bubblewrap is a lightweight, unpriviledged tool for constructing sandboxes.
+Orchard is a Docker-based sandbox for macOS users. It builds an Ubuntu container with Java 21, Maven, OpenJML, and Fray pre-installed — including native aarch64 (Apple Silicon) support.
+
+```
+./orchard.sh              # Enter the orchard interactively
+./orchard.sh make check   # Run a specific command inside the orchard
+```
+
+The first run builds the Docker image (this takes a few minutes). Subsequent runs reuse the cached image. The container mounts only the project directory at `/workspace` — no home directory credentials or `/var` are exposed.
+
+**Important:** Do `git push` / `git pull` *outside* the orchard, on your host machine.
+
+### Using Bubblewrap / `bwrap` (Linux)
+
+Bubblewrap is a lightweight, unprivileged tool for constructing sandboxes.
 This repo contains a Bash script, `bw-opencode`, that launches opencode within a Bubblewrap sandbox.
 
-You are not required to use this utility, but it might serve as a helpful example.
+You are not required to use either sandbox utility, but they serve as helpful examples.
 
 Other alternatives include:
  * [VirtualBox VM](https://www.virtualbox.org/) / [Vagrant](https://developer.hashicorp.com/vagrant)

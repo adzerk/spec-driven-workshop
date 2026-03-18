@@ -1,0 +1,303 @@
+###############################################################################
+# Dockerfile.orchard — macOS-friendly orchard for the spec-driven workshop
+#
+# This replaces the Bubblewrap (bw-opencode) approach for macOS users.
+# It creates a minimal Ubuntu container with Java 21, Maven, and Make,
+# then lets you run your coding agent (e.g. opencode) inside it.
+#
+# SECURITY NOTES (from the workshop guide):
+#   - /var is NEVER mounted from the host
+#   - No credentials or secrets should enter this container
+#   - Do git push/pull OUTSIDE the container, on your host machine
+#   - The container only exists for the agent to do typing/coding
+###############################################################################
+
+FROM ubuntu:22.04
+
+# Avoid interactive prompts during package install
+ENV DEBIAN_FRONTEND=noninteractive
+# JAVA_HOME is set dynamically in the entrypoint to handle both amd64 and arm64
+
+# Install base tools + Java 21 + Maven + Make
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    make \
+    vim \
+    ca-certificates \
+    gnupg \
+    unzip \
+    zip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Eclipse Temurin JDK 21 (same family as the project's bundled JDK)
+RUN curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /usr/share/keyrings/adoptium.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb $(. /etc/os-release && echo $VERSION_CODENAME) main" \
+       > /etc/apt/sources.list.d/adoptium.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends temurin-21-jdk \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Oracle JDK 25 (includes jmods, needed for Fray's jlink).
+# Adoptium JDK 25 dropped jmods per JEP 493, but Fray 0.7.3 still needs them.
+RUN curl -fsSL "https://download.oracle.com/java/25/latest/jdk-25_linux-aarch64_bin.tar.gz" \
+    -o /tmp/jdk25.tar.gz \
+    && mkdir -p /opt/jdk-25 \
+    && tar -xzf /tmp/jdk25.tar.gz -C /opt/jdk-25 --strip-components=1 \
+    && rm /tmp/jdk25.tar.gz
+ENV FRAY_JDK_HOME=/opt/jdk-25
+
+# Install Maven
+ARG MAVEN_VERSION=3.9.9
+RUN curl -fsSL https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz \
+    | tar -xz -C /opt \
+    && ln -s /opt/apache-maven-${MAVEN_VERSION}/bin/mvn /usr/local/bin/mvn
+
+# Install Node.js (needed for opencode and many coding agents)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install opencode and openspec
+RUN npm install -g opencode-ai@latest @fission-ai/openspec
+
+# Build Fray JVMTI agent for linux-aarch64 (not published to Maven Central)
+# Then install it into the system Maven repo so the project can resolve it.
+ARG FRAY_VERSION=0.7.3
+RUN apt-get update && apt-get install -y --no-install-recommends cmake g++ \
+    && rm -rf /var/lib/apt/lists/* \
+    && git clone --depth 1 --branch v${FRAY_VERSION} https://github.com/cmu-pasta/fray.git /tmp/fray \
+    && export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java)))) \
+    # Remove -nostdlib flag that breaks linking on aarch64 (missing __dso_handle)
+    && sed -i 's/-nostdlib//g' /tmp/fray/jvmti/src/cpp/CMakeLists.txt \
+    && mkdir -p /tmp/fray/jvmti/src/build \
+    && cd /tmp/fray/jvmti/src/build \
+    && cmake -DCMAKE_BUILD_TYPE=Release .. \
+    && cmake --build . \
+    # Package the .so into a JAR matching Maven Central's layout
+    && mkdir -p /tmp/fray-jar \
+    && cp /tmp/fray/jvmti/src/build/cpp/libjvmti.so /tmp/fray-jar/ \
+    && cd /tmp/fray-jar \
+    && jar cf fray-jvmti-linux-aarch64-${FRAY_VERSION}.jar libjvmti.so \
+    # Install into local Maven repo
+    && mvn install:install-file \
+         -Dfile=/tmp/fray-jar/fray-jvmti-linux-aarch64-${FRAY_VERSION}.jar \
+         -DgroupId=org.pastalab.fray \
+         -DartifactId=fray-jvmti-linux-aarch64 \
+         -Dversion=${FRAY_VERSION} \
+         -Dpackaging=jar \
+    && rm -rf /tmp/fray /tmp/fray-jar
+
+# Install z3 SMT solver natively (aarch64). OpenJML's --esc needs an SMT solver.
+# OpenJML only publishes x86-64 Linux builds, so instead of using their bundled
+# JDK and solvers, we run OpenJML's Java bytecode on the container's native JDK
+# using --patch-module (see entrypoint), and use this native z3.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends z3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build a custom aarch64 JDK with OpenJML's JML extensions using jlink.
+#
+# The approach: modify Temurin's JMODs (ZIP-based module archives) to include
+# OpenJML's platform-independent bytecode, then run jlink to produce a proper
+# JDK image with a real JIMAGE (lib/modules). This avoids the "exploded modules"
+# layout which production JDK builds don't fully support at the native layer.
+#
+# We modify two JMODs:
+#   - java.base.jmod: add org.jmlspecs.* classes + OpenJML's module-info.class
+#     (which declares JML package exports), keeping Temurin's VM-internal classes
+#     for native libjvm.so compatibility (StackChunk field layout etc.)
+#   - jdk.compiler.jmod: replace classes with OpenJML's JML-aware javac
+#     (pure Java bytecode — no native code in this module)
+#
+# JMOD format: 4-byte magic header (JM\x01\x00) + standard ZIP data.
+# We manipulate them as ZIPs (strip header → modify → prepend header).
+ARG OPENJML_VERSION=21-0.23
+RUN JAVA_HOME_DETECTED=$(dirname $(dirname $(readlink -f $(which java)))) \
+    # 1. Download the macOS OpenJML release (bytecode is platform-independent)
+    && curl -fsSL "https://github.com/OpenJML/OpenJML/releases/download/${OPENJML_VERSION}/openjml-macos-14-${OPENJML_VERSION}.zip" \
+       -o /tmp/openjml.zip \
+    && mkdir -p /opt/openjml-assets \
+    && unzip -q /tmp/openjml.zip -d /opt/openjml-assets \
+    #
+    # 2. Extract java.base.jmod, add JML classes, and use OpenJML's module-info
+    #    (created as jmod in step 5 below). OpenJML's module-info.class exports
+    #    the org.jmlspecs.* packages that the JML compiler needs access to.
+    #    Temurin's module-info doesn't export them, causing "package not visible" errors.
+    #    We capture Temurin's module version to restore it via --module-version in step 5.
+    && mkdir -p /tmp/modified-jmods \
+    && "$JAVA_HOME_DETECTED/bin/jmod" extract \
+       --dir /tmp/java-base-jmod \
+       "$JAVA_HOME_DETECTED/jmods/java.base.jmod" \
+    && TEMURIN_MODULE_VERSION=$("$JAVA_HOME_DETECTED/bin/javap" -verbose \
+       /tmp/java-base-jmod/classes/module-info.class 2>/dev/null \
+       | sed -n 's/.*module java\.base@\([^ ]*\)/\1/p') \
+    && mkdir -p /tmp/java-base-jmod/classes/org \
+    && cp -a /opt/openjml-assets/jdk/modules/java.base/org/jmlspecs \
+             /tmp/java-base-jmod/classes/org/jmlspecs \
+    && cp /opt/openjml-assets/jdk/modules/java.base/module-info.class \
+          /tmp/java-base-jmod/classes/module-info.class \
+    #
+    # 3. Modify jdk.compiler.jmod — overlay OpenJML's JML-aware compiler classes
+    #    Keep Temurin's module-info.class (has version). OpenJML's new packages
+    #    (org.openjml, org.jmlspecs.openjml) become concealed packages accessible
+    #    within the module. Modified com.sun.tools.javac.* classes replace Temurin's.
+    && "$JAVA_HOME_DETECTED/bin/jmod" extract \
+       --dir /tmp/jdk-compiler-jmod \
+       "$JAVA_HOME_DETECTED/jmods/jdk.compiler.jmod" \
+    && mv /tmp/jdk-compiler-jmod/classes/module-info.class \
+          /tmp/temurin-compiler-mi.class \
+    && cp -a /opt/openjml-assets/jdk/modules/jdk.compiler/* \
+             /tmp/jdk-compiler-jmod/classes/ \
+    && mv /tmp/temurin-compiler-mi.class \
+          /tmp/jdk-compiler-jmod/classes/module-info.class \
+    && "$JAVA_HOME_DETECTED/bin/jmod" create \
+       --class-path /tmp/jdk-compiler-jmod/classes \
+       --cmds /tmp/jdk-compiler-jmod/bin \
+       --libs /tmp/jdk-compiler-jmod/lib \
+       --legal-notices /tmp/jdk-compiler-jmod/legal \
+       /tmp/modified-jmods/jdk.compiler.jmod \
+    #
+    # 4. Copy all other unmodified jmods
+    && for f in "$JAVA_HOME_DETECTED/jmods/"*.jmod; do \
+         name=$(basename "$f"); \
+         case "$name" in java.base.jmod|jdk.compiler.jmod) continue ;; esac; \
+         cp "$f" /tmp/modified-jmods/; \
+       done \
+    #
+    # 5. Create java.base.jmod LAST with --hash-modules to compute fresh hashes.
+    #    OpenJML's module-info.class lacks a module version, so we restore Temurin's
+    #    via --module-version (required by jlink). --hash-modules recomputes hashes
+    #    against the actual (modified) modules in --module-path.
+    && "$JAVA_HOME_DETECTED/bin/jmod" create \
+       --class-path /tmp/java-base-jmod/classes \
+       --cmds /tmp/java-base-jmod/bin \
+       --libs /tmp/java-base-jmod/lib \
+       --conf /tmp/java-base-jmod/conf \
+       --legal-notices /tmp/java-base-jmod/legal \
+       --module-version "$TEMURIN_MODULE_VERSION" \
+       --target-platform linux-aarch64 \
+       --module-path /tmp/modified-jmods \
+       --hash-modules ".*" \
+       /tmp/modified-jmods/java.base.jmod \
+    #
+    # 6. jlink creates a complete custom JDK with proper JIMAGE
+    && "$JAVA_HOME_DETECTED/bin/jlink" \
+       --module-path /tmp/modified-jmods \
+       --add-modules ALL-MODULE-PATH \
+       --output /opt/openjml-jdk \
+       --no-header-files --no-man-pages \
+    #
+    # Cleanup
+    && rm -rf /tmp/java-base-jmod /tmp/jdk-compiler-jmod \
+              /tmp/modified-jmods /tmp/temurin-compiler-mi.class /tmp/openjml.zip \
+    && chmod -R a+rX /opt/openjml-assets /opt/openjml-jdk
+
+# Create a Linux JDK tooling directory that mirrors the expected layout.
+# The pom.xml hardcodes tooling/jdk-21.0.7+6/bin/javac — which is a macOS
+# binary on the mounted host volume. We prepare a Linux version at a known
+# path, and the entrypoint will bind it over the macOS one.
+RUN mkdir -p /opt/tooling-jdk/bin \
+    && JAVA_HOME_DETECTED=$(dirname $(dirname $(readlink -f $(which java)))) \
+    && for tool in "$JAVA_HOME_DETECTED/bin/"*; do \
+         ln -sf "$tool" "/opt/tooling-jdk/bin/$(basename $tool)"; \
+       done \
+    && ln -sf "$JAVA_HOME_DETECTED/lib" /opt/tooling-jdk/lib \
+    && ln -sf "$JAVA_HOME_DETECTED/include" /opt/tooling-jdk/include \
+    && ln -sf "$JAVA_HOME_DETECTED/conf" /opt/tooling-jdk/conf
+
+# Wrap mvn so Fray's prepare-fray goal uses the container's JDK.
+# Must be a real script (not a shell function) because Make resolves
+# MVN to an absolute path via $(shell which mvn).
+RUN mv /usr/local/bin/mvn /usr/local/bin/mvn-real \
+    && printf '#!/bin/sh\nexec /usr/local/bin/mvn-real -Dplugin.jdkPath="${FRAY_JDK_HOME}" "$@"\n' \
+       > /usr/local/bin/mvn \
+    && chmod +x /usr/local/bin/mvn
+
+# Create a non-root user for the orchard with pre-created directories
+# Copy the Fray JVMTI artifact from root's Maven cache to the orchard user's
+RUN useradd -m -s /bin/bash orchard \
+    && mkdir -p /home/orchard/.local/share \
+    && mkdir -p /home/orchard/.cache \
+    && mkdir -p /home/orchard/.config \
+    && mkdir -p /home/orchard/.m2 \
+    && cp -r /root/.m2/repository /home/orchard/.m2/repository \
+    && chown -R orchard:orchard /home/orchard
+USER orchard
+WORKDIR /workspace
+
+# Set JAVA_HOME dynamically and launch bash
+COPY --chmod=755 <<'ENTRYPOINT' /usr/local/bin/orchard-entry.sh
+#!/bin/bash
+export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+export PATH="${JAVA_HOME}/bin:${PATH}"
+
+# Detect JDK 25 for Fray (the mvn wrapper references FRAY_JDK_HOME)
+for d in /usr/lib/jvm/temurin-25-*; do
+    if [ -d "$d" ]; then export FRAY_JDK_HOME="$d"; break; fi
+done
+
+# The macOS tooling JDK is shadowed by a tmpfs mount (see orchard.sh).
+# Populate it with symlinks to the container's Linux JDK.
+TOOLING_JDK="/workspace/tooling/jdk-21.0.7+6"
+if [ -d "$TOOLING_JDK" ]; then
+    mkdir -p "$TOOLING_JDK/bin"
+    for tool in "$JAVA_HOME/bin/"*; do
+        ln -sf "$tool" "$TOOLING_JDK/bin/$(basename "$tool")"
+    done
+    # Also link lib/ so tools can find the JDK modules
+    ln -sfn "$JAVA_HOME/lib" "$TOOLING_JDK/lib"
+    ln -sfn "$JAVA_HOME/conf" "$TOOLING_JDK/conf"
+    ln -sfn "$JAVA_HOME/include" "$TOOLING_JDK/include"
+fi
+
+# The macOS OpenJML is shadowed by a tmpfs mount (see orchard.sh).
+# Populate it with OpenJML's scripts/jars and link to the custom JDK built
+# at image time via jlink (at /opt/openjml-jdk). The custom JDK has a proper
+# JIMAGE containing Temurin's aarch64 native code + OpenJML's JML bytecode.
+OPENJML_DIR="/workspace/tooling/openjml"
+if [ -d "$OPENJML_DIR" ] && [ -d /opt/openjml-assets ]; then
+    # 1. Copy non-native OpenJML assets (scripts, jars, specs)
+    for item in jmlruntime.jar specs setup-exports setup-vars version-info.txt \
+                README openjml openjml-java openjml-compile openjml-run \
+                openjml.properties-template; do
+        [ -e "/opt/openjml-assets/$item" ] && cp -a "/opt/openjml-assets/$item" "$OPENJML_DIR/"
+    done
+
+    # 2. Link to the custom JDK (built with jlink at image time — has proper JIMAGE)
+    ln -sfn /opt/openjml-jdk "$OPENJML_DIR/jdk"
+
+    # 3. Set up native aarch64 SMT solvers.
+    #    OpenJML internally appends Solvers-<os>/ to OPENJML_SOLVERS, so we set
+    #    OPENJML_SOLVERS to the openjml dir (not the Solvers-linux subdir).
+    #    We also symlink the default prover names (z3-4.3.1 etc.) to the system z3.
+    mkdir -p "$OPENJML_DIR/Solvers-linux"
+    Z3_BIN=$(which z3 2>/dev/null)
+    if [ -n "$Z3_BIN" ]; then
+        Z3_VER=$(z3 --version 2>/dev/null | grep -oP '\d+\.\d+\.\d+' | head -1)
+        ln -sf "$Z3_BIN" "$OPENJML_DIR/Solvers-linux/z3-${Z3_VER:-4.8.12}"
+        # OpenJML's default provers look for these specific names
+        for name in z3-4.3.1 z3-4.5.0 z3-4.6.0 z3-4.7.1; do
+            ln -sf "$Z3_BIN" "$OPENJML_DIR/Solvers-linux/$name"
+        done
+    fi
+
+    # 4. Fix the openjml script to use Solvers-linux instead of Solvers-macos
+    if [ -f "$OPENJML_DIR/openjml" ]; then
+        sed -i 's|Solvers-macos|Solvers-linux|g' "$OPENJML_DIR/openjml" 2>/dev/null || true
+    fi
+
+    chmod -R u+rwX "$OPENJML_DIR"
+    export OPENJML_SOLVERS="$OPENJML_DIR"
+fi
+
+# The Makefile uses `JHOME =` (not ?=), so env vars get ignored.
+# Wrapping make so JHOME is passed as a command-line override,
+# which takes highest priority in Make.
+make() { command make JHOME="${JAVA_HOME}" "$@"; }
+export -f make
+
+exec "$@"
+ENTRYPOINT
+ENTRYPOINT ["/usr/local/bin/orchard-entry.sh"]
+CMD ["/bin/bash"]
