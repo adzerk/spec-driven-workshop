@@ -50,7 +50,7 @@ fi
 DOCKERFILE="${SCRIPT_DIR}/Dockerfile.orchard"
 
 if [[ ! -f "$DOCKERFILE" ]]; then
-    error "Dockerfile.orchard not found in ${PROJECT_DIR}"
+    error "Dockerfile.orchard not found in ${SCRIPT_DIR}"
     exit 1
 fi
 
