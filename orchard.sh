@@ -21,7 +21,8 @@ set -euo pipefail
 
 IMAGE_NAME="spec-workshop-orchard"
 CONTAINER_NAME="spec-workshop-orchard-$$"
-PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(pwd)"
 
 # ── Colors for output ────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -46,7 +47,7 @@ if ! docker info &>/dev/null 2>&1; then
 fi
 
 # ── Build the image if it doesn't exist (or if Dockerfile changed) ────────────
-DOCKERFILE="${PROJECT_DIR}/Dockerfile.orchard"
+DOCKERFILE="${SCRIPT_DIR}/Dockerfile.orchard"
 
 if [[ ! -f "$DOCKERFILE" ]]; then
     error "Dockerfile.orchard not found in ${PROJECT_DIR}"
@@ -63,7 +64,7 @@ fi
 
 if $NEEDS_BUILD; then
     info "Planting orchard (this may take a few minutes the first time)..."
-    docker build -t "$IMAGE_NAME" -f "$DOCKERFILE" "$PROJECT_DIR"
+    docker build -t "$IMAGE_NAME" -f "$DOCKERFILE" "$SCRIPT_DIR"
     info "Orchard ready to harvest."
 else
     info "Using existing orchard."
