@@ -28,6 +28,8 @@
     <google.java.format.version>1.35.0</google.java.format.version>
     <palantir.java.format.version>2.39.0</palantir.java.format.version>
 
+    <owasp.dependency-check.version>12.2.0</owasp.dependency-check.version>
+
     <maven.shade.version>3.6.2</maven.shade.version>
   </properties>
 
@@ -275,6 +277,22 @@
           </execution>
         </executions>
       </plugin>
+
+      <!-- Dependency-check detects publicly disclosed vulnerabilities (CVEs) of project dependencies -->
+      <!--
+      <plugin>
+        <groupId>org.owasp</groupId>
+        <artifactId>dependency-check-maven</artifactId>
+        <version>${owasp.dependency-check.version}</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      -->
 
       <!-- Shade is used to produce an Uberjar / Fat Jar during packaging -->
       <plugin>
