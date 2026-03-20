@@ -51,3 +51,10 @@ JML specs live inline in Java source as `/*@ ... @*/` comments. Key constructs: 
 - **macOS**: `./orchard.sh` — Docker container (Ubuntu 22.04) with all tooling pre-installed
 - **Linux**: `./bw-opencode` — Bubblewrap sandbox
 - Git push/pull must be done on the host, not inside sandboxes
+
+## Custom Commands
+
+The `/optimize-code` command analyzes code for performance issues (algorithmic complexity, memory leaks, I/O bottlenecks). See [`optimize-code.md`](optimize-code.md) for the full prompt.
+
+- **Claude Code** and **OpenCode**: available automatically (command files are in the repo)
+- **Codex**: one-time setup — `cp optimize-code.md ~/.codex/prompts/optimize-code.md`
