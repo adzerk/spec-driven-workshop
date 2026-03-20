@@ -54,12 +54,12 @@ RUN curl -fsSL https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/bi
     && ln -s /opt/apache-maven-${MAVEN_VERSION}/bin/mvn /usr/local/bin/mvn
 
 # Install Node.js (needed for opencode and many coding agents)
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Install opencode, openspec, and Claude Code
-RUN npm install -g opencode-ai@latest @fission-ai/openspec @anthropic-ai/claude-code
+# Install opencode, openspec, Claude Code, and Codex
+RUN npm install -g opencode-ai@latest @fission-ai/openspec @anthropic-ai/claude-code @openai/codex
 
 # Build Fray JVMTI agent for linux-aarch64 (not published to Maven Central)
 # Then install it into the system Maven repo so the project can resolve it.
@@ -308,6 +308,13 @@ if [ -n "${CLAUDE_CODE_KEYCHAIN_CREDS:-}" ]; then
     chmod 600 "$CLAUDE_HOME/.credentials.json"
     # Don't leak the credentials into the process environment
     unset CLAUDE_CODE_KEYCHAIN_CREDS
+fi
+
+# Copy Codex auth from the read-only staging mount.
+if [ -f /tmp/codex-host-auth.json ]; then
+    mkdir -p /home/orchard/.codex
+    cp /tmp/codex-host-auth.json /home/orchard/.codex/auth.json
+    chmod 600 /home/orchard/.codex/auth.json
 fi
 
 # The Makefile uses `JHOME =` (not ?=), so env vars get ignored.
