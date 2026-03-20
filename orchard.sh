@@ -64,7 +64,8 @@ fi
 
 if $NEEDS_BUILD; then
     info "Planting orchard (this may take a few minutes the first time)..."
-    docker build -t "$IMAGE_NAME" -f "$DOCKERFILE" "$SCRIPT_DIR"
+    DOCKERFILE_REAL="$(readlink -f "$DOCKERFILE")"
+    docker build -t "$IMAGE_NAME" -f "$DOCKERFILE_REAL" "$SCRIPT_DIR"
     info "Orchard ready to harvest."
 else
     info "Using existing orchard."
