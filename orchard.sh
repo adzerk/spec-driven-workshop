@@ -79,9 +79,12 @@ echo ""
 
 # The macOS tooling JDK can't run on Linux. We overlay it with a tmpfs
 # that the entrypoint populates with Linux JDK symlinks.
-CLAUDE_ENV=()
+AGENT_ENV=()
 if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
-    CLAUDE_ENV+=(-e "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}")
+    AGENT_ENV+=(-e "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}")
+fi
+if [[ -n "${OPENAI_API_KEY:-}" ]]; then
+    AGENT_ENV+=(-e "OPENAI_API_KEY=${OPENAI_API_KEY}")
 fi
 
 # Extract Claude Code OAuth credentials from macOS Keychain and pass them to the
@@ -118,6 +121,15 @@ if [[ -f "${HOME}/.claude.json" ]]; then
     info "Mounting Claude Code config from ~/.claude.json"
 fi
 
+# Mount Codex auth.json to a staging location (read-only).
+# The entrypoint copies it to ~/.codex/auth.json inside the container.
+# Codex stores OAuth tokens in plaintext — no Keychain decryption needed.
+CODEX_AUTH_MOUNT=()
+if [[ -z "${OPENAI_API_KEY:-}" ]] && [[ -f "${HOME}/.codex/auth.json" ]]; then
+    CODEX_AUTH_MOUNT=(-v "${HOME}/.codex/auth.json:/tmp/codex-host-auth.json:ro")
+    info "Mounting Codex auth from ~/.codex/auth.json"
+fi
+
 docker run \
     --rm \
     -it \
@@ -125,6 +137,7 @@ docker run \
     --hostname orchard \
     -v "${PROJECT_DIR}:/workspace" \
     ${CLAUDE_CONFIG_MOUNT[@]+"${CLAUDE_CONFIG_MOUNT[@]}"} \
+    ${CODEX_AUTH_MOUNT[@]+"${CODEX_AUTH_MOUNT[@]}"} \
     ${CREDS_ENV_FILE:+--env-file "$CREDS_ENV_FILE"} \
     --tmpfs /workspace/tooling/jdk-21.0.7+6:exec,uid=1000,gid=1000 \
     --tmpfs /workspace/tooling/openjml:exec,uid=1000,gid=1000 \
@@ -133,6 +146,6 @@ docker run \
     --cap-drop ALL \
     --cap-add DAC_OVERRIDE \
     --cap-add FOWNER \
-    ${CLAUDE_ENV[@]+"${CLAUDE_ENV[@]}"} \
+    ${AGENT_ENV[@]+"${AGENT_ENV[@]}"} \
     "$IMAGE_NAME" \
     "${@:-bash}"
