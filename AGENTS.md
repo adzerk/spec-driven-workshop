@@ -57,4 +57,4 @@ JML specs live inline in Java source as `/*@ ... @*/` comments. Key constructs: 
 The `/optimize-code` command analyzes code for performance issues (algorithmic complexity, memory leaks, I/O bottlenecks). See [`optimize-code.md`](optimize-code.md) for the full prompt.
 
 - **Claude Code** and **OpenCode**: available automatically (command files are in the repo)
-- **Codex**: one-time setup — `cp optimize-code.md ~/.codex/prompts/optimize-code.md`
+- **Codex**: one-time setup — `mkdir -p ~/.codex/prompts && cp optimize-code.md ~/.codex/prompts/optimize-code.md`
