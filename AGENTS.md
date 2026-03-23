@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents when working with code in this r
 
 ## Project Overview
 
-A spec-driven development workshop teaching engineers about lightweight formal methods through Java exercises. The core demonstrates JML (Java Modeling Language) specifications, property-based testing, and static analysis on intentionally buggy code.
+A spec-driven development workshop teaching engineers about agent-based development and lightweight formal methods through Java exercises. The core demonstrates JML (Java Modeling Language) specifications, property-based testing, and static analysis.
 
 ## Build Commands
 
@@ -37,7 +37,6 @@ Palantir Java Format (modified Google Style) enforced by Spotless. Run `make for
 
 - **Java 21** compiled via project-local JDK in `tooling/jdk-21.0.7+6/`
 - **Maven** (`pom.xml`) manages dependencies and plugins; profiles: `errorprone`, `openjml`, `dev`
-- **`Makefile.preamble`** handles platform detection (Linux/macOS/aarch64), JDK path resolution, and checksum verification
 - Source: `src/main/java/com/kevel/` — application code with inline JML specs (`/*@ ... @*/`)
 - Tests: `src/test/java/com/kevel/` — JUnit 5 unit tests + jqwik property-based tests
 - OpenJML binary: `tooling/openjml/openjml` — invoked directly for `check-jml-only`
@@ -45,6 +44,7 @@ Palantir Java Format (modified Google Style) enforced by Spotless. Run `make for
 ## JML Specifications
 
 JML specs live inline in Java source as `/*@ ... @*/` comments. Key constructs: `requires` (preconditions), `ensures` (postconditions), `pure` (no side effects). Use `// @ skipesc skiprac` to exclude methods from verification. OpenJML catches issues like integer overflow that tests may miss.
+For more details see the [OpenJML Tuturial](https://www.openjml.org/tutorial/)
 
 ## Sandboxed Development
 
