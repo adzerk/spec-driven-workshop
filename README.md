@@ -28,10 +28,10 @@ You must run these commands first before using the project.  Please have a good 
 #### General tooling info
 
  * The project uses Maven for managing dependences and workflow plugins
- * Code formatting with Spotless; Currently using the Palantir-modified Google Style
- * Unit tests via JUnit5, property-based tests via jqwik, concurrency tests via Fray -- all integrated through JUnit5
+ * Code formatting with [Spotless](https://github.com/diffplug/spotless); Currently using the Palantir-modified Google Style
+ * Unit tests via JUnit5, property-based tests via [jqwik](https://jqwik.net/docs/current/user-guide.html), concurrency tests via [Fray](https://github.com/cmu-pasta/fray/tree/main) -- all integrated through JUnit5
  * Static analysis via Google Errorprone, Spotbugs, and find-security-bugs
- * Extended checking and verification with OpenJML
+ * Extended checking and verification with [OpenJML](https://www.openjml.org/tutorial/)
 
 As you adapt the spec-driven techniques to other languages and runtimes, you should have similar tooling coverage.
 For example, in Rust you might use Cargo, rustfmt, proptest/quickcheck/bolero for property-based tests,
@@ -71,6 +71,8 @@ Bubblewrap is a lightweight, unprivileged tool for constructing sandboxes.
 This repo contains a Bash script, `bw-opencode`, that launches opencode within a Bubblewrap sandbox.
 
 You are not required to use either sandbox utility, but they serve as helpful examples.
+
+### Other sandbox options
 
 Other alternatives include:
  * [VirtualBox VM](https://www.virtualbox.org/) / [Vagrant](https://developer.hashicorp.com/vagrant)
