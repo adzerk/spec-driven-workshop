@@ -139,6 +139,8 @@ tooling_Linux:
 	&& $(jdk_check_sha) \
 	&& tar -xvzf $(adopt_openjdk_version_slug) \
 	&& rm $(adopt_openjdk_version_slug) \
+	&& wget $(alloy_url)/$(alloy_version) -O alloy_v6.0.2.jar \
+	&& wget $(tla_url)/$(tla_version) -O tla2tools_v1.8.0.jar \
 	&& mkdir openjml \
 	&& cd openjml \
 	&& wget $(openjml_url)/$(openjml_version) \
@@ -154,6 +156,8 @@ tooling_Darwin:
 	&& tar -xvzf $(adopt_openjdk_version_slug) \
 	&& rm $(adopt_openjdk_version_slug) \
 	&& ln -s `pwd`/jdk-21.0.7+6/Contents/Home/bin `pwd`/jdk-21.0.7+6/bin \
+	&& wget $(alloy_url)/$(alloy_version) -O alloy_v6.0.2.jar \
+	&& wget $(tla_url)/$(tla_version) -O tla2tools_v1.8.0.jar \
 	&& mkdir openjml \
 	&& cd openjml \
 	&& wget $(openjml_url)/$(openjml_version) \

@@ -28,10 +28,10 @@ You must run these commands first before using the project.  Please have a good 
 #### General tooling info
 
  * The project uses Maven for managing dependences and workflow plugins
- * Code formatting with Spotless; Currently using the Palantir-modified Google Style
- * Unit tests via JUnit5, property-based tests via jqwik, concurrency tests via Fray -- all integrated through JUnit5
+ * Code formatting with [Spotless](https://github.com/diffplug/spotless); Currently using the Palantir-modified Google Style
+ * Unit tests via JUnit5, property-based tests via [jqwik](https://jqwik.net/docs/current/user-guide.html), concurrency tests via [Fray](https://github.com/cmu-pasta/fray/tree/main) -- all integrated through JUnit5
  * Static analysis via Google Errorprone, Spotbugs, and find-security-bugs
- * Extended checking and verification with OpenJML
+ * Extended checking and verification with [OpenJML](https://www.openjml.org/tutorial/)
 
 As you adapt the spec-driven techniques to other languages and runtimes, you should have similar tooling coverage.
 For example, in Rust you might use Cargo, rustfmt, proptest/quickcheck/bolero for property-based tests,
@@ -72,10 +72,34 @@ This repo contains a Bash script, `bw-opencode`, that launches opencode within a
 
 You are not required to use either sandbox utility, but they serve as helpful examples.
 
+### Other sandbox options
+
 Other alternatives include:
  * [VirtualBox VM](https://www.virtualbox.org/) / [Vagrant](https://developer.hashicorp.com/vagrant)
  * [firejail](https://github.com/netblue30/firejail)
  * a microVM
  * [boxlite](https://boxlite.ai/)
  * [OpenSandbox](https://github.com/alibaba/OpenSandbox/tree/main/examples/claude-code)
+
+### Additional tooling and agent-based resources
+
+There are a number of additional commands, skills, and utilities in this repo to improve the agent-based workflow.
+Copy the desired commands and skills into your `.opencode` or `.claude` directory.  Adjusting naming as needed.
+
+#### Commands
+`commands` - contains common commands you can use directly or adapt for you project
+- `/optimize-code @some/path/to/code` - Perform an optimization review of the code
+- `/enhance-code @some/path/to/code` - Review the code for quality and spec alignment
+- `/spec-evidence @some/spec.md` - Update the spec.md file so Scenarios link to source and tests. You can also list src and test dirs to focus the command if needed
+- `/sample-prompt Some prompt text` - Perform verbalized sampling of the given prompt
+
+#### Skills
+`skills` - contains skills for advanced modeling techniques
+- For Alloy, the `alloy-more` skill should be preferred
+- For OpenJML, if the specs are simple don't use a skill.  If the specs are challenging, try `openjml-more`
+- For TLA+, if the spec is simple don't use a skill.  If the specs are challenging, try `tlaplus-more`
+
+#### Scripts
+The `scripts` directory contains additional tools/scripts to assist in agent-based development
+- `evidence.sh` is a doctest tool that turns "living docs" (`spec.md`) into verification artifacts. Validation + Verification in a single source.
 
