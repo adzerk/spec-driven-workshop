@@ -30,13 +30,13 @@ Execute comprehensive specification conformance review:
 
 2. **Invariants and conditions**
    - All invariants, pre-conditions, and post-conditions are documented within the code
-   - All invariants, pre-conditions, and post-conditions are execised within the tests
+   - All invariants, pre-conditions, and post-conditions are exercised within the tests
    - The core functionality has verified functionality, if the code is using a verification tool (like OpenJML in Java or Kani in Rust)
 
 3. **Error conditions and failure modes**
    - All error conditions are clearly documented and defensively checked
    - All error conditions and exceptions have clear messages
-   - All error conditions and excpetions are correctly handled and no data is leaked beyond the immediate scope
+   - All error conditions and exceptions are correctly handled and no data is leaked beyond the immediate scope
    - All failure modes are clearly documented and isolated within the code
 
 **Step 3: Security Analysis**
@@ -48,17 +48,18 @@ Scan for security vulnerabilities:
    - XSS attack vectors
    - Path traversal risks
 
-2. **Authentication & Authorization**
+2. **Authentication and Authorization**
    - Weak password policies
    - Missing authentication checks
    - Inadequate session management
    - Privilege escalation risks
 
-3. **Data Protection**
+3. **Data Protection and Connectivity**
    - Sensitive data in logs or errors
    - Unencrypted sensitive data storage
-   - Missing rate limiting
    - Insecure API endpoints
+   - Missing rate limiting
+   - External connections missing circuit breakers
 
 4. **Dependency Security**
    - Outdated packages with known vulnerabilities
@@ -85,6 +86,8 @@ Identify hidden problems:
    - Single points of failure
    - Resource exhaustion scenarios
    - Concurrent access issues
+   - Reads are not separated from writes
+   - Compute is not separated from storage and I/O
 
 4. **Maintainability Issues**
    - Code duplication

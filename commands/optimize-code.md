@@ -27,7 +27,7 @@ Execute comprehensive performance review:
    - Look for unnecessary nested loops
    - Find redundant calculations or database queries
    - Spot inefficient data structure usage
-   - Suggest better algorithic approaches where possible
+   - Suggest better algorithmic approaches where possible
    - Suggest better data structure options where possible
 
 2. **Memory Management**
@@ -43,6 +43,7 @@ Execute comprehensive performance review:
    - Look for missing caching opportunities
    - Identify blocking operations that could be async
    - Database: N+1 queries, missing indexes
+   - Excessive file handle or connection creation
 
 **Step 3: Present Optimization Report**
 
