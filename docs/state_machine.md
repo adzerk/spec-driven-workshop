@@ -662,17 +662,16 @@ public final class WitnessedSessionCapabilities {
         if (!session.hasWitness(WITNESS)) {
             throw new SecurityException("Untrusted session");
         }
-        return Box.of(session.get(), WITNESS);
+        return session.into(WITNESS);
     }
 }
 ```
 
-This example re-boxes the value with the same witness during `login(...)`.
-That is necessary because `into()` intentionally drops witness information.
+This example carries the same witness forward during `login(...)` by using
+`into(WITNESS)`.
 
 That leads to a useful rule of thumb:
 
 - use tags alone for lightweight internal typestate,
 - use tags plus witnesses for trusted capability minting,
 - and use dedicated state classes when behavior differs substantially by state.
-

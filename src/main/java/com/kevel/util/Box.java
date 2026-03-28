@@ -115,6 +115,14 @@ public final class Box<Tag, T> implements Supplier<T> {
         return new Box<>(value);
     }
 
+    /**
+     * Create a new box with a new tag, retain the value, and reset the witness.
+     * The new Box will new witness information.
+     */
+    public <NewTag> Box<NewTag, T> into(Object witness) {
+        return new Box<>(value, witness);
+    }
+
     @Override
     public boolean equals(Object other) {
         if (this == other) {
