@@ -1,14 +1,12 @@
-
 package com.kevel.util;
 
+import java.util.Objects;
 import java.util.function.Supplier;
-
-import com.kevel.util.NType;
 
 /*
  * Boxes are a simple typed-tagged Reference Type, where the tags are removed
  * at compile time; zero-sized.
- * Boxes are immutable; This is a value-based record.  The contents of a Box
+ * Boxes are immutable; This is a value-based class.  The contents of a Box
  * cannot be reset after creation.
  *
  * -- Tagging generic data --
@@ -33,64 +31,59 @@ import com.kevel.util.NType;
  * For example, you could tag a file a Readable and enforce read access.
  * Another example, you could tag a User record as an "Admin", such that it can
  * only perform admin operations (enforced at compile-time).
+ * Optionally, Witness Objects enable confirmation at runtime that the capability was not forged.
+ * Make sure witness objects have private visibility, scoped to where you need trust.
  *
  * -- Option type --
  * Boxes can be used as a simple Option type, removing null references from your program.
  */
 
-public record Box<W extends NType,T>(T inner) implements Supplier<T> {
+public final class Box<Tag, T> implements Supplier<T> {
+    private final T value;
+    private final Object witness;
+    private static final Object DEFAULT_WITNESS = new Object();
+    public static final Box<?, ?> EMPTY = new Box(null);
 
-    public static final Box<NType,?> EMPTY = new Box<>();
-
-    private Box(){
-        this(null);
+    private Box() {
+        this(null, DEFAULT_WITNESS);
     }
 
-    public Box(T inner) {
-        this.inner = inner;
+    private Box(T value) {
+        this(value, DEFAULT_WITNESS);
+    }
+
+    private Box(T value, Object witness) {
+        this.value = value;
+        this.witness = witness;
+    }
+
+    public static <Tag, T> Box<Tag, T> of(T value) {
+        Objects.requireNonNull(value, "Box value cannot be null. Use Box.EMPTY if you want an empty box");
+        return new Box<>(value);
+    }
+
+    public static <Tag, T> Box<Tag, T> of(T value, Object witness) {
+        Objects.requireNonNull(value, "Box value cannot be null. Use Box.EMPTY if you want an empty box");
+        Objects.requireNonNull(witness, "Box witness cannot be null.");
+        return new Box<>(value, witness);
     }
 
     public T get() {
-        return this.inner;
+        return value;
     }
 
-    public static <X extends NType,R> Box<X,R> of(R inner) {
-        if ((inner == null) || (inner == EMPTY)) {
-            @SuppressWarnings("unchecked")
-            Box<X,R> b = (Box<X,R>) EMPTY;
-            return b;
-        }
-        return new Box(inner);
-    }
-
-    public static <X extends NType,R> Box<X,R> of(R inner, Class<X> x) {
-        if ((inner == null) || (inner == EMPTY)) {
-            @SuppressWarnings("unchecked")
-            Box<X,R> b = (Box<X,R>) EMPTY;
-            return b;
-        }
-        return new Box(inner);
-    }
-
-    //TODO: Maybe make this an instance method
-    public static boolean isEmpty(Box b) {
-        // Defend against someone using the constructor to make an empty box
-        return ((b == null) || (b == EMPTY) || (b.get() == null));
-    }
-
-    public <X extends NType> Box<X,T> into(Class<X> x) {
-        return new Box<X,T>(inner);
-    }
-
-    // This works nicely with `var` and wildcard captures
-    public <R> R orElse(R other) {
-        if (this.inner == null) {
+    public T or(T other) {
+        if (value == null) { // this is EMPTY
             return other;
         }
-        return (R)this.inner;
+        return value;
     }
 
-    public <X extends NType, R extends Comparable<T>> int compareTo(Box<X,R> other) {
+    public boolean hasWitness(Object expected) {
+        return this.witness == expected;
+    }
+
+    public <X, R extends Comparable<T>> int compareTo(Box<X, R> other) {
         /*
          * See: https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Comparable.html
          *
@@ -101,85 +94,51 @@ public record Box<W extends NType,T>(T inner) implements Supplier<T> {
          *
          * Use `tcompareTo` for a stricter Comparison.
          */
-        return -(other.get().compareTo(this.inner));
+        return -(other.get().compareTo(value));
     }
 
-    public <X extends W, R extends Comparable<T>> int tcompareTo(Box<X,R> other) {
+    public <X extends Tag, R extends Comparable<T>> int tcompareTo(Box<X, R> other) {
 
         // Note: This has _slightly_ different behavior than `tequals`,
         //       since sub type tags are allowed to be compared whereas
         //       `tequals` requires the exact same type tag.
         //       This is on purpose.
 
-        return -(other.get().compareTo(this.inner));
+        return -(other.get().compareTo(value));
     }
 
-    public <R> boolean tequals(Box<W,R> other) {
-        return this.inner.equals(other.get());
+    /**
+     * Create a new box with a new tag, but retain the value.
+     * The new Box will drop the witness information, since its creation can't be trusted.
+     */
+    public <NewTag> Box<NewTag, T> into() {
+        return new Box<>(value);
     }
 
-    class BoxExample {
-        public interface Email extends NType {}
-        public interface Password extends NType {}
-        public interface Age extends NType {}
-        public interface AllowAge extends Age {}
-
-        public <T> T checkEmail(Box<Email,T> email) {
-            return email.get();
-        }
-
-        public boolean tryIt() {
-            // Let's make some Boxes
-            var someEmail = new Box<Email,String>("hello");
-            Box<Email,?> anotherEmail = Box.of("goodbye");
-            var somePassword = new Box<Password,String>("world");
-            var anotherPassword = Box.of("terre", Password.class);
-
-            // The compiler ensures only "Email" things are passed to checkEmail
-            var res =  checkEmail(someEmail) == "hello"; // -> true
-            //checkEmail(somePassword) // Compile-time error
-
-            // `tequals` is a typed `equals`. Compiler only allows same type tag
-            var anotherRes = res && someEmail.tequals(anotherEmail);
-            //someEmail.tequals(somePassword); // Compile-time error
-            // But `equals` is dynamic, as expected:
-            someEmail.equals(somePassword); // this compares the `inner` values of our Box record
-
-            // Let's make three empty boxes
-            var emptyBox = Box.EMPTY;
-            var anotherEmptyBox = Box.of(null);
-            var badEmptyBox = new Box<>(null); // Careful with the Constructor!
-            emptyBox.tequals(anotherEmptyBox); // and .equals()
-            emptyBox.tequals(badEmptyBox);     // and .equals()
-            var comp = ((emptyBox == anotherEmptyBox) &&
-                        (emptyBox != badEmptyBox));
-            // But all their hashcodes are the same, `0` -- they're all hashed as `null`
-
-            // Boxes work as an Option type
-            var sum = emptyBox.orElse(11) + 100;
-            var addr = someEmail.orElse("default@domain.com").toUpperCase();
-
-            // Boxes can be destructured with `switch`
-            var someAge = new Box<Age,Integer>(99);
-            var matchRes = switch(someAge) {
-                //case Box<Password,?>(var pw) -> "We have a password: "+pw.toString(); // Compile-time error
-                // We don't need to use the generics, but the types are enforced as we saw on the prev line
-                case Box<Age,Integer>(var i) when i > 10 -> "We have an allowable age";
-                default -> "Unallowed age";
-            };
-
-            // Boxes are transparent (following the same rules as Records)
-            assert (someEmail.hashCode() == "hello".hashCode());
-
-            // Boxes that contain Comparable things can be compared.
-            var stringComp = someEmail.compareTo(somePassword);
-            // `tcompareTo` is a typed `compareTo`. Compiler only allows sub type tag
-            //var strictComp = someEmail.tcompareTo(somePassword); // Compile-time error
-            var anotherAge = new Box<AllowAge,Integer>(100);
-            var ageComp = someAge.tcompareTo(anotherAge); // AllowAge extends Age
-
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
             return true;
         }
+        if (other instanceof Box b) {
+            var otherValue = b.get();
+            return Objects.equals(value, otherValue);
+        }
+        return false;
+    }
+
+    public boolean tequals(Box<Tag, T> other) {
+        return Objects.equals(value, other.get());
+    }
+
+    @Override
+    public int hashCode() {
+        // Boxes are transparent, they have the same hashcode as the contents
+        return Objects.hashCode(value);
+    }
+
+    @Override
+    public String toString() {
+        return "Box[" + value + "]";
     }
 }
-
