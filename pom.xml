@@ -230,7 +230,9 @@
           <effort>Max</effort>
           <threshold>Medium</threshold>
           <failOnError>true</failOnError>
+          <!--
           <includeFilterFile>${session.executionRootDirectory}/spotbugs-include.xml</includeFilterFile>
+          -->
           <excludeFilterFile>${session.executionRootDirectory}/spotbugs-exclude.xml</excludeFilterFile>
           <plugins>
             <plugin>
@@ -309,6 +311,14 @@
               <goal>shade</goal>
             </goals>
             <configuration>
+              <filters>
+                <filter>
+                  <artifact>com.google.errorprone:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.MF</exclude>
+                  </excludes>
+                </filter>
+			  </filters>
               <transformers>
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                   <mainClass>com.kevel.App</mainClass>
