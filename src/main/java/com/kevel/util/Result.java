@@ -104,6 +104,23 @@ public sealed interface Result<T, E> extends Supplier<T> {
      * Wraps a potentially exception-throwing operation in a Result.
      *
      * @param supplier The operation that might throw
+     * @param <T> The type of the success value
+     * @param <E> The type of the Exception if thrown by supplier
+     * @return A Result containing either the success value or error
+     */
+    @CheckReturnValue // must-use
+    static <T, E extends Exception> Result<T, E> of(ThrowingSupplier<T> supplier) {
+        try {
+            return ok(supplier.get());
+        } catch (Exception e) {
+            return err((E) e);
+        }
+    }
+
+    /**
+     * Wraps a potentially exception-throwing operation in a Result.
+     *
+     * @param supplier The operation that might throw
      * @param errorMapper Function to convert Exception to error type
      * @param <T> The type of the success value
      * @param <E> The type of the error value
@@ -294,7 +311,7 @@ public sealed interface Result<T, E> extends Supplier<T> {
     }
 
     /**
-     * This is like get(), but if the Err type is holding an Exeption, throw it as a checked exception
+     * This is like get(), but if the Err type is holding an Exception, throw it as a checked exception
      */
     static <T, E extends Throwable> T getChecked(Result<T, E> result) throws E {
         return switch (result) {

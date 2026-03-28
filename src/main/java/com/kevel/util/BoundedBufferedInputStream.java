@@ -10,7 +10,7 @@ public class BoundedBufferedInputStream extends BufferedInputStream {
     public final long allowableBytes;
     protected long boundedCount = 0;
 
-    protected final int EOF = -1;
+    protected static final int EOF = -1;
 
     public BoundedBufferedInputStream(final InputStream in, final long allowableBytes) {
         super(in);
