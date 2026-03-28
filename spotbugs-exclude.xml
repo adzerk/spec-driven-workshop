@@ -1,2 +1,12 @@
 <FindBugsFilter>
+    <Match>
+        <Class name="com.kevel.util.Box" />
+        <Method name="compareTo" />
+        <Bug pattern="RV_NEGATING_RESULT_OF_COMPARETO" />
+    </Match>
+    <Match>
+        <Class name="com.kevel.util.Box" />
+        <Method name="tcompareTo" />
+        <Bug pattern="RV_NEGATING_RESULT_OF_COMPARETO" />
+    </Match>
 </FindBugsFilter>
