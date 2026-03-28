@@ -72,8 +72,8 @@ check: format
 test:
 	@JAVA_HOME=$(JHOME) $(MVN) test
 
-.PHONY : check-jml-only
-check-jml-only:
+.PHONY : jml
+jml:
 	@tooling/openjml/openjml --esc --progress -cp $(shell mvn dependency:build-classpath -Dmdep.outputFile=/dev/stdout -q) --dirs src/main
 	# This next line works too, leaving it as an example
 	#@tooling/openjml/openjml --esc --progress -cp $(shell mvn dependency:build-classpath -Dmdep.outputFile=/dev/stdout -q) $(java_sources)
@@ -81,7 +81,7 @@ check-jml-only:
 	#@mvn -P openjml -e -X verify
 
 .PHONY : check-jml
-check-jml: check check-jml-only
+check-jml: check jml
 
 .PHONY : doc
 doc:
