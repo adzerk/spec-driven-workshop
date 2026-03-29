@@ -79,7 +79,7 @@ public final class Box<Tag, T> implements Supplier<T> {
         return value;
     }
 
-    public boolean hasWitness(Object expected) {
+    public boolean hasWitness(final Object expected) {
         return this.witness == expected;
     }
 
@@ -117,10 +117,23 @@ public final class Box<Tag, T> implements Supplier<T> {
 
     /**
      * Create a new box with a new tag, retain the value, and reset the witness.
-     * The new Box will new witness information.
+     * The new Box will contain new witness information.
      */
     public <NewTag> Box<NewTag, T> into(Object witness) {
         return new Box<>(value, witness);
+    }
+
+    /**
+     * Create a new box with a new tag, and retain the value ONLY IF the witness matches.
+     * The new Box will have the same witness information.
+     *
+     * @throws IllegalStateException if the witness information does not match
+     */
+    public <NewTag> Box<NewTag, T> intoOnlyWith(Object witness) {
+        if (this.hasWitness(witness)) {
+            return new Box<>(value, witness);
+        }
+        throw new IllegalStateException("Attempt to shift a box with incorrect/invalid witness token");
     }
 
     @Override
