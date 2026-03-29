@@ -1,9 +1,13 @@
 # State Machines in Java
 
 State machines are a strong foundational construction pattern in software
-because they make legal behavior explicit. Instead of scattering lifecycle
-rules across conditionals, a state machine names the valid states, the allowed
-transitions, and the actions that move the system forward.
+because they make legal behavior explicit. State machines are useful in
+production systems because they make legal behavior explicit and easier to
+enforce, debug, and test.
+
+Instead of scattering lifecycle rules across conditionals, a state machine
+names the valid states, the allowed transitions, and the actions that move the
+system forward.
 
 ## Why use state machines?
 
@@ -14,11 +18,21 @@ transitions, and the actions that move the system forward.
 - They align well with formal reasoning. Preconditions, postconditions, and invariants often map naturally onto state transitions.
 - They can move correctness earlier. With the right Java design, some invalid transitions can be rejected by the compiler instead of failing at runtime.
 
+## Quick comparison
+
+| Approach | Compiler-checked transitions | Allocation profile | Best for | Main tradeoff |
+|---|---|---|---|---|
+| `enum` | No | Low to moderate | Simple business workflows | Mostly runtime-checked |
+| Typestate | Yes | Moderate by default, low with care | APIs, protocols, capability-style workflows | More generic machinery |
+| Sealed state types | Yes | Moderate | Clear domain models, JML-friendly code | More types and boilerplate |
+| Packed primitives | Limited | Very low | Hot paths, lowest latency, lowest GC | Harder to read and evolve |
+| Singleton typestate | Yes | Very low | Hot paths that still need typed transitions | More complex than wrapper typestate |
+
 ## Common ways to implement state machines in Java
 
 ### 1. Enum-based state machines
 
-This is the simplest approach. The states are enum constants, and transition logic usually lives in methods on the enum or in a separate transition function.
+This is the simplest approach. States are enum constants, and transition logic usually lives in methods on the enum or in a separate transition function.
 
 Advantages:
 
@@ -29,7 +43,7 @@ Advantages:
 Tradeoffs:
 
 - Transition legality is mostly enforced at runtime.
-- Only supports a single `next` state
+- Simple enum designs often model a single default `next` state; branching usually requires extra methods or external policy.
 - The compiler knows the set of states, but usually cannot prevent illegal transition calls.
 
 Example:
@@ -83,9 +97,7 @@ public final class EnumOrderExample {
 
 ### 2. Typestate with generics or phantom types
 
-In this design, the state appears in the Java type. A value like `Order<Draft>`
-can only be passed to operations that accept the `Draft` state. Each transition
-returns a new object with a different type parameter, such as `Order<Paid>`.
+In this design, the state appears in the Java type. A value like `Order<Draft>` can only be passed to operations that accept the `Draft` state, and each transition returns a value with a different type parameter such as `Order<Paid>`.
 
 Advantages:
 
@@ -98,8 +110,7 @@ Tradeoffs:
 - More verbose than enums.
 - Can become awkward for highly branching or cyclic graphs.
 
-This repository's `Box<Tag, T>` utility in `src/main/java/com/kevel/util/Box.java` is useful here.
-It acts like a lightweight tagged wrapper, where the tag exists only at compile time.
+This repository's `Box<Tag, T>` utility in `src/main/java/com/kevel/util/Box.java` is a useful lightweight tagged wrapper for this style.
 
 Example:
 
@@ -152,9 +163,7 @@ public final class TypestateOrder {
 
 ### 3. Sealed interfaces and records with explicit transition methods
 
-In Java 21, sealed types provide a clear algebraic-data-type style
-representation of a closed set of states. Each state is a distinct type, and
-only that state exposes the transitions that are valid from it.
+In Java 21, sealed types provide a closed set of states. Each state is a distinct type, and only that state exposes the transitions that are valid from it.
 
 Advantages:
 
@@ -203,11 +212,120 @@ public final class SealedOrderExample {
 }
 ```
 
+### 4. Packed-primitive state machines
+
+In this design, the machine state is stored in one or a few primitive values, often a single `long`, and transitions are implemented as small `static final` helper methods that unpack, update, and repack the bits.
+
+Advantages:
+
+- Very low allocation and GC pressure.
+- Often the best raw throughput and latency profile.
+- A good fit for hot loops and protocol engines.
+
+Tradeoffs:
+
+- Harder to read and debug than object-based designs.
+- Compiler-checked transition safety is weaker unless wrapped by a typed API.
+- Bit layouts must be designed and maintained carefully.
+
+Example:
+
+```java
+package com.kevel.examples;
+
+public final class PackedOrderExample {
+    private static final long STATE_MASK = 0x3L;
+    private static final int REVISION_SHIFT = 2;
+    private static final int CENTS_SHIFT = 18;
+    private static final int ID_SHIFT = 34;
+
+    private static final int DRAFT = 0;
+    private static final int PAID = 1;
+    private static final int SHIPPED = 2;
+
+    static long create(long id, int cents, int revision) {
+        return ((id & 0x3FFFFFFFL) << ID_SHIFT)
+                | (((long) cents & 0xFFFFL) << CENTS_SHIFT)
+                | (((long) revision & 0xFFFFL) << REVISION_SHIFT)
+                | DRAFT;
+    }
+
+    static long pay(long order) {
+        return (order & ~STATE_MASK) | PAID;
+    }
+
+    static long ship(long order) {
+        return (order & ~STATE_MASK) | SHIPPED;
+    }
+}
+```
+
+### 5. Singleton typestate
+
+Singleton typestate separates protocol safety from runtime data. Legal states are represented by reused singleton state objects or state classes, while runtime data lives in a mutable primitive carrier or packed `long`.
+
+Advantages:
+
+- Compiler-checked transitions.
+- Very low allocation when paired with packed or mutable primitive data.
+- Useful middle ground between packed primitives and wrapper-based typestate.
+
+Tradeoffs:
+
+- More complex than ordinary typestate wrappers.
+- Less explicit than sealed state objects.
+- Shared mutable carriers require synchronization or thread confinement.
+
+Example:
+
+```java
+package com.kevel.examples;
+
+public final class SingletonTypestateOrder {
+    static final class OrderData {
+        long id;
+        int cents;
+        int revision;
+    }
+
+    static final Draft DRAFT = new Draft();
+    static final Paid PAID = new Paid();
+    static final Shipped SHIPPED = new Shipped();
+
+    static final class Draft {
+        private Draft() {}
+
+        Paid pay(OrderData data) {
+            return PAID;
+        }
+    }
+
+    static final class Paid {
+        private Paid() {}
+
+        Shipped ship(OrderData data) {
+            return SHIPPED;
+        }
+    }
+
+    static final class Shipped {
+        private Shipped() {}
+
+        Draft reset(OrderData data) {
+            data.revision++;
+            return DRAFT;
+        }
+    }
+}
+```
+
 ## Choosing an approach
 
 - Use `enum` when simplicity matters more than compile-time transition safety.
 - Use typestate when the workflow itself is part of the API contract.
 - Use sealed state types when you want a clear, explicit, domain-centered model.
+- Use packed primitives when absolute throughput and minimal allocation are the priority.
+- Use singleton typestate when you want near-zero-allocation code with compiler-checked transitions.
 
 ## Practical guidance
 
@@ -216,30 +334,34 @@ For many Java systems, the best progression is:
 1. Start with an enum if the lifecycle is simple.
 2. Move to sealed types when state-specific behavior starts to grow.
 3. Use typestate when illegal transitions must be caught by the compiler.
+4. Use singleton typestate or packed primitives when the machine sits on a hot path.
 
 If the software is already using contracts, invariants, or JML, state machines fit naturally:
 each transition can be described by preconditions and postconditions, and the state model becomes a clean place to express those guarantees.
 
+## Production concerns
+
+In production systems, the best state-machine design is not just the one with the strongest type story. It also needs to work well with storage, concurrency, observability, and long-term evolution.
+
+- Persist logical state, not Java implementation details. Store state names or stable numeric codes in databases and messages.
+- Validate external input at runtime before converting it into stronger typed internal representations.
+- Be explicit about concurrency. Immutable wrapper designs are easier to share; mutable packed or singleton-carrier designs usually rely on thread confinement.
+- Add structured logging around state transitions so production failures can be traced in terms of domain states, not only internal classes or bit patterns.
+- Plan for evolution. Adding a new state is easier when state handling is centralized and exhaustive.
+
 ## Using JML with state machines
 
-JML is a natural fit for state machines because transitions already have the shape of contracts.
-A transition method typically answers four questions:
+This section is optional for teams that are not using JML or OpenJML.
 
-- When is this transition legal?
-- What state does it produce?
-- What data is allowed to change?
-- What properties must remain true in every visible state?
+JML fits state machines well because transitions already look like contracts. In practice, transition legality maps to `requires`, destination state and preserved data map to `ensures`, modified fields map to `assignable`, and always-true lifecycle properties map to `invariant` clauses.
 
-In JML, those map directly to `requires`, `ensures`, `assignable`, and `invariant` clauses.
+### Main JML guidance
 
-### Transition-oriented JML patterns
-
-- Use `requires` to describe when a transition is legal.
-- Use `ensures` to describe the destination state and any preserved business data.
-- Use `assignable` to keep frame conditions tight; many transitions should only modify the state field.
-- Use class `invariant`s for facts that must hold in every state, such as non-null fields or numeric bounds.
-- Use `\old(...)` to state what must stay unchanged across a transition.
-- Prefer block comment JML syntax such as `/*@ ... @*/`, since formatters can silently break single-line `//@` annotations.
+- Use `requires` for legal transitions.
+- Use `ensures` for the destination state and preserved business data.
+- Use `assignable` to keep frame conditions tight.
+- Use `invariant` for properties that must hold in every visible state.
+- Prefer block comment syntax such as `/*@ ... @*/`, since formatters can silently break single-line `//@` annotations.
 
 ### JML with an enum-based state machine
 
@@ -284,20 +406,9 @@ This style is useful when the lifecycle is simple and runtime checks are accepta
 
 Typestate moves part of the protocol into Java's type system. For example, `pay` accepts `Order<Draft>` and returns `Order<Paid>`. That means some transition legality is already compiler-checked before JML enters the picture.
 
-JML is still useful here, but it plays a slightly different role:
+JML is still useful here, but it mainly specifies data preservation, object validity, and factory or helper behavior. OpenJML has only partial support for complex generics, so simple typestate APIs tend to work better than deeply generic ones.
 
-- It specifies data preservation across transitions.
-- It specifies object validity and non-nullness.
-- It documents what the resulting object contains.
-- It can verify helper methods and factories around the typestate API.
-
-This pattern is strong conceptually, but OpenJML has only partial support for complex generics. In practice, simple typestate designs can work well, but deeply generic or highly abstract APIs can be harder to verify than they are to type-check with `javac`.
-
-For that reason, typestate is often best when:
-
-- the generic structure is shallow,
-- the transition surface is small,
-- and the primary goal is Java compile-time protocol enforcement.
+For deeper JML guidance, see the appendix at the end of this document.
 
 ### JML with sealed state types
 
@@ -373,6 +484,8 @@ If the goal is to combine Java's type system with JML contracts, a useful rule o
 - Keep transition methods small. Small transition bodies are easier for OpenJML to verify.
 - If a transition allocates a new object, specify both the result type and the preserved data properties.
 - If a transition can fail by throwing, use `behavior` with `signals` and `signals_only` instead of relying only on `normal_behavior`.
+
+The practical rule of thumb is simple: use sealed state types when JML clarity matters most, use typestate when compiler-checked transitions matter most and the generic design stays simple, and use enums when runtime-checked state is sufficient.
 
 ## Coupled machines: product-state encoding
 
@@ -485,7 +598,7 @@ public final class CoupledTrafficLights {
 }
 ```
 
-This adds two useful ideas on top of ordinary state machines.
+This pattern adds two useful ideas on top of ordinary state machines.
 
 ### Product-state encoding
 
@@ -535,10 +648,11 @@ This pattern is usually best implemented with sealed state types and explicit tr
 
 ## Capabilities as state machines
 
-Capabilities can be modeled as a state machine too. Instead of saying an object
-is in state `Draft` or `Paid`, we say a value carries a capability such as
-`Authenticated`, `MfaVerified`, or `AdminApproved`. Each transition grants,
-refines, or revokes what the caller is allowed to do next.
+Capabilities can be modeled as a state machine too. This is a specialized form
+of typestate. Instead of saying an object is in state `Draft` or `Paid`, we say
+a value carries a capability such as `Authenticated`, `MfaVerified`, or
+`AdminApproved`. Each transition grants, refines, or revokes what the caller is
+allowed to do next.
 
 `Box<Tag, T>` in `src/main/java/com/kevel/util/Box.java` is a lightweight way
 to express this style. The payload `T` is the real runtime value, and the tag
@@ -681,7 +795,7 @@ That leads to a useful rule of thumb:
 State-machine performance in Java depends less on the abstract pattern name and more on the runtime shape of the implementation.
 
 - The fastest designs usually minimize heap allocation, object churn, and unpredictable branching.
-- `static final` helpers, immutable payloads, and small transition methods are generally good for inlining and JIT optimization.
+- Small `static final` helpers and compact object shapes are generally good for inlining and JIT optimization.
 - A "stateless" design is only low-overhead if the state is carried in cheap values such as primitives or packed data, not if each transition allocates a fresh wrapper object.
 - Benchmark hot-loop and escaping cases separately. A design can look fast when the JVM keeps values local, but behave differently when intermediate states must be stored or observed.
 
@@ -768,9 +882,13 @@ Tradeoffs:
 - Requires careful separation of typed state from mutable data.
 - Thread safety depends on ownership of the carrier; shared mutable carriers need synchronization.
 
+### Benchmark sources
+
+The performance guidance in this section is grounded in the JMH benchmarks in `src/jmh/java/com/kevel/bench/state/SimpleStateMachineBenchmark.java` and `src/jmh/java/com/kevel/bench/state/RobustStateMachineBenchmark.java`. Shared implementations and fixtures live in `src/jmh/java/com/kevel/bench/state/StateMachineBenchmarkSupport.java`.
+
 ### Rule of thumb
 
-If you want the best balance of correctness and performance in ordinary Java application code, typestate is often the sweet spot:
+If you want the best balance of correctness and performance in ordinary Java application code, wrapper-based typestate is often the sweet spot:
 
 - stronger guarantees than enums,
 - usually less runtime baggage than richer runtime-tagged wrappers,
@@ -782,3 +900,43 @@ For performance-oriented systems, a practical ladder is:
 - singleton typestate for near-zero-allocation code with compiler-checked transitions,
 - wrapper typestate for the best everyday balance of safety and simplicity,
 - sealed state objects for the clearest domain model.
+
+## Appendix: Deeper JML guidance
+
+The main JML section above focuses on how state machines map naturally to contracts. This appendix collects the deeper guidance that is most useful when you are writing production specifications.
+
+### Method-level contracts for transitions
+
+- Use `requires` to describe when a transition is legal.
+- Use `ensures` to describe the destination state and preserved business data.
+- Use `assignable` to keep frame conditions tight.
+- Use `\old(...)` for values that must remain unchanged.
+- Use class `invariant`s for facts that must hold in every visible state.
+
+### Recommended JML style for state machines
+
+- Prefer block comments such as `/*@ ... @*/` over single-line `//@` annotations, since formatters can silently break the single-line form.
+- Keep transition methods small and local. Smaller methods are easier for OpenJML to verify.
+- Prefer abstract model fields if public specifications should describe logical state instead of concrete representation.
+- Use `spec_public` sparingly; it is convenient, but it leaks representation details into public contracts.
+
+### Pattern guidance
+
+- Enum-based machines are straightforward to specify, but most transition legality still comes from runtime checks and JML preconditions.
+- Sealed state types are often the best match for JML because each legal transition can live on the source state type and be specified locally.
+- Typestate can work well with JML, but complex generics may be harder for OpenJML to reason about than for `javac`.
+
+### Practical production advice
+
+- Use JML to specify business guarantees, not just internal implementation details.
+- Prefer contracts that describe logical state transitions and preserved invariants.
+- If a transition can fail by throwing, use `behavior` with `signals` and `signals_only` rather than relying only on `normal_behavior`.
+- If a transition allocates a new object, specify both the result type and the key preserved properties.
+
+### Summary
+
+When JML is part of the toolchain, state machines become an especially strong design choice:
+
+- Java types can prevent some illegal transitions,
+- JML can describe the legal transitions precisely,
+- and invariants can capture the guarantees that must hold in every state.
