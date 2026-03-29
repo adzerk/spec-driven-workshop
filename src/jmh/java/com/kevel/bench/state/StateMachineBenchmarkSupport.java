@@ -49,7 +49,6 @@ public final class StateMachineBenchmarkSupport {
     static final IntersectionPayload ROBUST_SEED = new IntersectionPayload(17L, 0, 0, 0, true);
 
     static final BoxOrderBoxing BOX_HELPER = new BoxOrderBoxing();
-
     /**
      * Common JMH settings for all state-machine benchmarks.
      *
@@ -79,6 +78,8 @@ public final class StateMachineBenchmarkSupport {
         final IntersectionPayload[] robustSink = new IntersectionPayload[ROBUST_TRANSITIONS];
         final long[] simplePackedSink = new long[SIMPLE_TRANSITIONS];
         final long[] robustPackedSink = new long[ROBUST_TRANSITIONS];
+        final PackedLongRef simplePackedRef = new PackedLongRef();
+        final PackedLongRef robustPackedRef = new PackedLongRef();
 
         @Setup
         public void setup() {
@@ -150,6 +151,10 @@ public final class StateMachineBenchmarkSupport {
                     payload.faultCount(),
                     true);
         }
+    }
+
+    static final class PackedLongRef {
+        long value;
     }
 
     /**
@@ -353,6 +358,126 @@ public final class StateMachineBenchmarkSupport {
 
         static final long robustCycles(long intersection) {
             return (intersection & ROBUST_CYCLES_MASK) >>> ROBUST_CYCLES_SHIFT;
+        }
+    }
+
+    static final class SingletonTypedOrderStates {
+        static final DraftOrderState DRAFT = new DraftOrderState();
+        static final PaidOrderState PAID = new PaidOrderState();
+        static final ShippedOrderState SHIPPED = new ShippedOrderState();
+
+        private SingletonTypedOrderStates() {}
+
+        static final DraftOrderState init(PackedLongRef ref, SimpleOrderPayload payload) {
+            ref.value = PrimitivePackedMachines.simpleCreate(payload);
+            return DRAFT;
+        }
+
+        static final class DraftOrderState {
+            private DraftOrderState() {}
+
+            final PaidOrderState pay(PackedLongRef ref) {
+                ref.value = PrimitivePackedMachines.simplePay(ref.value);
+                return PAID;
+            }
+        }
+
+        static final class PaidOrderState {
+            private PaidOrderState() {}
+
+            final ShippedOrderState ship(PackedLongRef ref) {
+                ref.value = PrimitivePackedMachines.simpleShip(ref.value);
+                return SHIPPED;
+            }
+        }
+
+        static final class ShippedOrderState {
+            private ShippedOrderState() {}
+
+            final DraftOrderState reset(PackedLongRef ref) {
+                ref.value = PrimitivePackedMachines.simpleReset(ref.value);
+                return DRAFT;
+            }
+        }
+    }
+
+    static final class SingletonTypedIntersectionStates {
+        static final GrIntersectionState GR = new GrIntersectionState();
+        static final YrIntersectionState YR = new YrIntersectionState();
+        static final RrIntersectionState RR = new RrIntersectionState();
+        static final RgIntersectionState RG = new RgIntersectionState();
+        static final RyIntersectionState RY = new RyIntersectionState();
+        static final FfIntersectionState FF = new FfIntersectionState();
+
+        private SingletonTypedIntersectionStates() {}
+
+        static final RrIntersectionState init(PackedLongRef ref, IntersectionPayload payload) {
+            ref.value = PrimitivePackedMachines.robustInit(payload);
+            return RR;
+        }
+
+        static final FfIntersectionState fault(PackedLongRef ref) {
+            ref.value = PrimitivePackedMachines.robustFault(ref.value);
+            return FF;
+        }
+
+        static final class GrIntersectionState {
+            private GrIntersectionState() {}
+
+            final YrIntersectionState nextState(PackedLongRef ref) {
+                ref.value = PrimitivePackedMachines.robustNext(ref.value);
+                return YR;
+            }
+        }
+
+        static final class YrIntersectionState {
+            private YrIntersectionState() {}
+
+            final RrIntersectionState nextState(PackedLongRef ref) {
+                ref.value = PrimitivePackedMachines.robustNext(ref.value);
+                return RR;
+            }
+        }
+
+        static final class RrIntersectionState {
+            private RrIntersectionState() {}
+
+            final GrIntersectionState northSouthFirst(PackedLongRef ref) {
+                ref.value = PrimitivePackedMachines.robustNorthSouthFirst(ref.value);
+                return GR;
+            }
+
+            final RgIntersectionState eastWestFirst(PackedLongRef ref) {
+                ref.value = PrimitivePackedMachines.robustEastWestFirst(ref.value);
+                return RG;
+            }
+        }
+
+        static final class RgIntersectionState {
+            private RgIntersectionState() {}
+
+            final RyIntersectionState nextState(PackedLongRef ref) {
+                ref.value = PrimitivePackedMachines.robustNext(ref.value);
+                return RY;
+            }
+        }
+
+        static final class RyIntersectionState {
+            private RyIntersectionState() {}
+
+            final RrIntersectionState nextState(PackedLongRef ref) {
+                ref.value = PrimitivePackedMachines.robustNext(ref.value);
+                return RR;
+            }
+        }
+
+        static final class FfIntersectionState {
+            private FfIntersectionState() {}
+
+            final RrIntersectionState restore(PackedLongRef ref) {
+                ref.value = PrimitivePackedMachines.robustRestore(ref.value);
+                return RR;
+            }
         }
     }
 

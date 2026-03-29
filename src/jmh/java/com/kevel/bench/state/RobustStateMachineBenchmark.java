@@ -5,6 +5,7 @@ import static com.kevel.bench.state.StateMachineBenchmarkSupport.ROBUST_TRANSITI
 import static com.kevel.bench.state.StateMachineBenchmarkSupport.consumeIntersection;
 import static com.kevel.bench.state.StateMachineBenchmarkSupport.consumeIntersectionPacked;
 import static com.kevel.bench.state.StateMachineBenchmarkSupport.PrimitivePackedMachines;
+import static com.kevel.bench.state.StateMachineBenchmarkSupport.SingletonTypedIntersectionStates;
 
 import com.kevel.bench.state.StateMachineBenchmarkSupport.BenchmarkBase;
 import com.kevel.bench.state.StateMachineBenchmarkSupport.BenchmarkState;
@@ -37,6 +38,7 @@ import org.openjdk.jmh.infra.Blackhole;
  *   <li>payload propagation,
  *   <li>allocation behavior under longer chains, and
  *   <li>the difference between object-based and primitive-packed stateless designs, and
+ *   <li>the cost of adding compiler-checked singleton typestate on top of packed primitives, and
  *   <li>the cost of representing product states explicitly.
  * </ul>
  *
@@ -169,6 +171,35 @@ public class RobustStateMachineBenchmark extends BenchmarkBase {
             intersection = PrimitivePackedMachines.robustNext(intersection);
         }
         return PrimitivePackedMachines.robustChecksum(intersection);
+    }
+
+    /**
+     * Singleton typestate over a packed-primitive carrier.
+     *
+     * <p>This benchmark exists to test whether compiler-checked product-state transitions can remain
+     * close to the primitive-packed performance floor. The packed {@code long} carries the runtime
+     * data, while singleton state objects provide typed legal transitions with no per-transition
+     * wrapper allocation.
+     */
+    @Benchmark
+    public int singletonTypestatePacked_hotLoop(BenchmarkState state) {
+        var ref = state.robustPackedRef;
+        var intersection = SingletonTypedIntersectionStates.init(ref, ROBUST_SEED);
+        for (int index = 0; index < ROBUST_TRANSITIONS; index++) {
+            if (state.robustFaults[index]) {
+                intersection = SingletonTypedIntersectionStates.fault(ref).restore(ref);
+            }
+            if (state.robustBranches[index]) {
+                var northSouthGreen = intersection.northSouthFirst(ref);
+                var yellow = northSouthGreen.nextState(ref);
+                intersection = yellow.nextState(ref);
+            } else {
+                var eastWestGreen = intersection.eastWestFirst(ref);
+                var yellow = eastWestGreen.nextState(ref);
+                intersection = yellow.nextState(ref);
+            }
+        }
+        return PrimitivePackedMachines.robustChecksum(ref.value);
     }
 
     /**
@@ -363,6 +394,37 @@ public class RobustStateMachineBenchmark extends BenchmarkBase {
             intersection = PrimitivePackedMachines.robustNext(intersection);
             intersection = PrimitivePackedMachines.robustNext(intersection);
             state.robustPackedSink[index] = intersection;
+        }
+        for (long packedIntersection : state.robustPackedSink) {
+            consumeIntersectionPacked(hole, packedIntersection);
+        }
+    }
+
+    /**
+     * Singleton typestate over a packed carrier with forced escape.
+     *
+     * <p>This benchmark measures the practical cost of singleton typestate when every iteration must
+     * publish its state. Even in the escape case, the representation stays primitive and should keep
+     * GC pressure near zero while preserving typed transitions.
+     */
+    @Benchmark
+    public void singletonTypestatePacked_escape(BenchmarkState state, Blackhole hole) {
+        var ref = state.robustPackedRef;
+        var intersection = SingletonTypedIntersectionStates.init(ref, ROBUST_SEED);
+        for (int index = 0; index < ROBUST_TRANSITIONS; index++) {
+            if (state.robustFaults[index]) {
+                intersection = SingletonTypedIntersectionStates.fault(ref).restore(ref);
+            }
+            if (state.robustBranches[index]) {
+                var northSouthGreen = intersection.northSouthFirst(ref);
+                var yellow = northSouthGreen.nextState(ref);
+                intersection = yellow.nextState(ref);
+            } else {
+                var eastWestGreen = intersection.eastWestFirst(ref);
+                var yellow = eastWestGreen.nextState(ref);
+                intersection = yellow.nextState(ref);
+            }
+            state.robustPackedSink[index] = ref.value;
         }
         for (long packedIntersection : state.robustPackedSink) {
             consumeIntersectionPacked(hole, packedIntersection);

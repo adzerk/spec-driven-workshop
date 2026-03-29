@@ -738,6 +738,36 @@ As a rule of thumb, choose packed primitives when:
 
 If those conditions do not hold, typestate is often a better default because it preserves most of the performance discipline while remaining much easier to read, evolve, and use safely.
 
+### Singleton typestate
+
+Singleton typestate is a useful middle ground between packed primitives and ordinary typestate wrappers. It separates protocol safety from runtime data.
+
+- Legal states are represented by reused singleton state objects or state classes.
+- Runtime data lives in a mutable primitive carrier or packed `long`.
+- Transitions update the carrier and return the next singleton state type.
+- This preserves compiler-checked transition safety without allocating a fresh wrapper on each transition.
+
+This style performs well because it removes most per-transition allocation while still encoding legal transitions in Java's type system.
+
+- It avoids wrapper churn.
+- It keeps the state tokens effectively free at runtime.
+- When paired with packed primitives, it can be nearly allocation-free and generate almost no GC pressure.
+- In the benchmarks in `src/jmh/java/com/kevel/bench/state/`, singleton typestate stayed very close to the packed-primitive floor while retaining stronger compile-time guarantees.
+
+Choose singleton typestate when:
+
+- the machine runs on a hot path,
+- illegal transitions should still fail at compile time,
+- the code can tolerate a mutable carrier or thread-confined packed state,
+- and throughput or latency matter more than maximizing readability.
+
+Tradeoffs:
+
+- More complex than ordinary wrapper-based typestate.
+- Less readable than sealed state objects.
+- Requires careful separation of typed state from mutable data.
+- Thread safety depends on ownership of the carrier; shared mutable carriers need synchronization.
+
 ### Rule of thumb
 
 If you want the best balance of correctness and performance in ordinary Java application code, typestate is often the sweet spot:
@@ -745,3 +775,10 @@ If you want the best balance of correctness and performance in ordinary Java app
 - stronger guarantees than enums,
 - usually less runtime baggage than richer runtime-tagged wrappers,
 - and a much lower conceptual and runtime cost than many developers expect.
+
+For performance-oriented systems, a practical ladder is:
+
+- packed primitives for absolute speed,
+- singleton typestate for near-zero-allocation code with compiler-checked transitions,
+- wrapper typestate for the best everyday balance of safety and simplicity,
+- sealed state objects for the clearest domain model.

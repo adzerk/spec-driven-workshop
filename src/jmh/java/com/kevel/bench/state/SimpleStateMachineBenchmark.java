@@ -4,6 +4,7 @@ import static com.kevel.bench.state.StateMachineBenchmarkSupport.BOX_HELPER;
 import static com.kevel.bench.state.StateMachineBenchmarkSupport.PrimitivePackedMachines;
 import static com.kevel.bench.state.StateMachineBenchmarkSupport.SIMPLE_SEED;
 import static com.kevel.bench.state.StateMachineBenchmarkSupport.SIMPLE_TRANSITIONS;
+import static com.kevel.bench.state.StateMachineBenchmarkSupport.SingletonTypedOrderStates;
 import static com.kevel.bench.state.StateMachineBenchmarkSupport.consumeSimple;
 import static com.kevel.bench.state.StateMachineBenchmarkSupport.consumeSimplePacked;
 
@@ -38,6 +39,8 @@ import org.openjdk.jmh.infra.Blackhole;
  *       the JVM can apply escape analysis.
  *   <li>{@code primitivePacked_hotLoop}: measures a low-level packed-long implementation that aims
  *       to minimize allocations and maximize throughput.
+ *   <li>{@code singletonTypestatePacked_hotLoop}: measures whether compiler-checked singleton
+ *       typestate can stay close to packed-primitive performance.
  *   <li>{@code boxTypestate_hotLoop}: measures the lightweight tagged-box approach used in this
  *       repository.
  *   <li>{@code sealed_hotLoop}: captures the cost of explicit state classes with fresh instances.
@@ -129,6 +132,26 @@ public class SimpleStateMachineBenchmark extends BenchmarkBase {
             order = PrimitivePackedMachines.simpleReset(order);
         }
         return PrimitivePackedMachines.simpleChecksum(order);
+    }
+
+    /**
+     * Singleton typestate over a packed {@code long} carrier.
+     *
+     * <p>This benchmark exists to test a near-zero-allocation typestate design. The state is still
+     * compiler-checked through distinct singleton state types, but the runtime data lives in a
+     * reusable packed primitive carrier. This isolates the cost of typed transition structure from
+     * the cost of wrapper allocation.
+     */
+    @Benchmark
+    public int singletonTypestatePacked_hotLoop(BenchmarkState state) {
+        var ref = state.simplePackedRef;
+        var draft = SingletonTypedOrderStates.init(ref, SIMPLE_SEED);
+        for (int step = 0; step < SIMPLE_TRANSITIONS; step++) {
+            var paid = draft.pay(ref);
+            var shipped = paid.ship(ref);
+            draft = shipped.reset(ref);
+        }
+        return PrimitivePackedMachines.simpleChecksum(ref.value);
     }
 
     /**
@@ -247,6 +270,28 @@ public class SimpleStateMachineBenchmark extends BenchmarkBase {
             order = PrimitivePackedMachines.simpleShip(order);
             order = PrimitivePackedMachines.simpleReset(order);
             state.simplePackedSink[step] = order;
+        }
+        for (long packedOrder : state.simplePackedSink) {
+            consumeSimplePacked(hole, packedOrder);
+        }
+    }
+
+    /**
+     * Singleton typestate over a packed carrier with forced escape.
+     *
+     * <p>This benchmark checks whether singleton typestate stays effectively allocation-free even
+     * when each step must be recorded and observed later. The state machine remains compiler-checked,
+     * but the escaped representation is still just a primitive {@code long}.
+     */
+    @Benchmark
+    public void singletonTypestatePacked_escape(BenchmarkState state, Blackhole hole) {
+        var ref = state.simplePackedRef;
+        var draft = SingletonTypedOrderStates.init(ref, SIMPLE_SEED);
+        for (int step = 0; step < SIMPLE_TRANSITIONS; step++) {
+            var paid = draft.pay(ref);
+            var shipped = paid.ship(ref);
+            draft = shipped.reset(ref);
+            state.simplePackedSink[step] = ref.value;
         }
         for (long packedOrder : state.simplePackedSink) {
             consumeSimplePacked(hole, packedOrder);
