@@ -3,6 +3,8 @@ package com.kevel.bench.state;
 import static com.kevel.bench.state.StateMachineBenchmarkSupport.ROBUST_SEED;
 import static com.kevel.bench.state.StateMachineBenchmarkSupport.ROBUST_TRANSITIONS;
 import static com.kevel.bench.state.StateMachineBenchmarkSupport.consumeIntersection;
+import static com.kevel.bench.state.StateMachineBenchmarkSupport.consumeIntersectionPacked;
+import static com.kevel.bench.state.StateMachineBenchmarkSupport.PrimitivePackedMachines;
 
 import com.kevel.bench.state.StateMachineBenchmarkSupport.BenchmarkBase;
 import com.kevel.bench.state.StateMachineBenchmarkSupport.BenchmarkState;
@@ -34,6 +36,7 @@ import org.openjdk.jmh.infra.Blackhole;
  *   <li>branch handling,
  *   <li>payload propagation,
  *   <li>allocation behavior under longer chains, and
+ *   <li>the difference between object-based and primitive-packed stateless designs, and
  *   <li>the cost of representing product states explicitly.
  * </ul>
  *
@@ -141,6 +144,31 @@ public class RobustStateMachineBenchmark extends BenchmarkBase {
         return intersection.payload().faultCount()
                 + intersection.payload().eastWestGreenCount()
                 + intersection.payload().northSouthGreenCount();
+    }
+
+    /**
+     * Primitive-packed product-state implementation.
+     *
+     * <p>This benchmark exists to measure a version of the coupled traffic light that keeps the
+     * entire machine in one packed {@code long}. It is designed to minimize allocations and expose
+     * the best-case performance of a low-level stateless approach on the JVM.
+     */
+    @Benchmark
+    public int primitivePacked_hotLoop(BenchmarkState state) {
+        long intersection = PrimitivePackedMachines.robustInit(ROBUST_SEED);
+        for (int index = 0; index < ROBUST_TRANSITIONS; index++) {
+            if (state.robustFaults[index]) {
+                intersection = PrimitivePackedMachines.robustRestore(PrimitivePackedMachines.robustFault(intersection));
+            }
+            if (state.robustBranches[index]) {
+                intersection = PrimitivePackedMachines.robustNorthSouthFirst(intersection);
+            } else {
+                intersection = PrimitivePackedMachines.robustEastWestFirst(intersection);
+            }
+            intersection = PrimitivePackedMachines.robustNext(intersection);
+            intersection = PrimitivePackedMachines.robustNext(intersection);
+        }
+        return PrimitivePackedMachines.robustChecksum(intersection);
     }
 
     /**
@@ -310,6 +338,34 @@ public class RobustStateMachineBenchmark extends BenchmarkBase {
         }
         for (IntersectionPayload payload : state.robustSink) {
             consumeIntersection(hole, payload);
+        }
+    }
+
+    /**
+     * Primitive-packed product-state implementation with forced escape.
+     *
+     * <p>This benchmark keeps the packed representation honest by writing the machine state into a
+     * primitive array. Unlike object-based escape cases, the representation still avoids heap object
+     * churn for the state itself and shows what low-level stateless Java can do under observation.
+     */
+    @Benchmark
+    public void primitivePacked_escape(BenchmarkState state, Blackhole hole) {
+        long intersection = PrimitivePackedMachines.robustInit(ROBUST_SEED);
+        for (int index = 0; index < ROBUST_TRANSITIONS; index++) {
+            if (state.robustFaults[index]) {
+                intersection = PrimitivePackedMachines.robustRestore(PrimitivePackedMachines.robustFault(intersection));
+            }
+            if (state.robustBranches[index]) {
+                intersection = PrimitivePackedMachines.robustNorthSouthFirst(intersection);
+            } else {
+                intersection = PrimitivePackedMachines.robustEastWestFirst(intersection);
+            }
+            intersection = PrimitivePackedMachines.robustNext(intersection);
+            intersection = PrimitivePackedMachines.robustNext(intersection);
+            state.robustPackedSink[index] = intersection;
+        }
+        for (long packedIntersection : state.robustPackedSink) {
+            consumeIntersectionPacked(hole, packedIntersection);
         }
     }
 

@@ -77,6 +77,8 @@ public final class StateMachineBenchmarkSupport {
         final boolean[] robustFaults = new boolean[ROBUST_TRANSITIONS];
         final SimpleOrderPayload[] simpleSink = new SimpleOrderPayload[SIMPLE_TRANSITIONS];
         final IntersectionPayload[] robustSink = new IntersectionPayload[ROBUST_TRANSITIONS];
+        final long[] simplePackedSink = new long[SIMPLE_TRANSITIONS];
+        final long[] robustPackedSink = new long[ROBUST_TRANSITIONS];
 
         @Setup
         public void setup() {
@@ -147,6 +149,210 @@ public final class StateMachineBenchmarkSupport {
                     payload.eastWestGreenCount(),
                     payload.faultCount(),
                     true);
+        }
+    }
+
+    /**
+     * Primitive-packed implementations used to measure a truly low-allocation stateless style.
+     *
+     * <p>These helpers encode the entire machine state in a single {@code long} and update it with
+     * {@code static final} functions. This is the style most likely to minimize heap pressure and
+     * maximize throughput in Java when raw speed matters more than object modeling ergonomics.
+     */
+    static final class PrimitivePackedMachines {
+        private static final long SIMPLE_STATE_MASK = 0x3L;
+        private static final int SIMPLE_REVISION_SHIFT = 2;
+        private static final long SIMPLE_REVISION_MASK = 0xFFFFL << SIMPLE_REVISION_SHIFT;
+        private static final int SIMPLE_CENTS_SHIFT = 18;
+        private static final long SIMPLE_CENTS_MASK = 0xFFFFL << SIMPLE_CENTS_SHIFT;
+        private static final int SIMPLE_ID_SHIFT = 34;
+        private static final long SIMPLE_ID_MASK = 0x3FFFFFFFL << SIMPLE_ID_SHIFT;
+        private static final int SIMPLE_STATE_DRAFT = 0;
+        private static final int SIMPLE_STATE_PAID = 1;
+        private static final int SIMPLE_STATE_SHIPPED = 2;
+
+        private static final long ROBUST_STATE_MASK = 0x7L;
+        private static final int ROBUST_POWER_SHIFT = 3;
+        private static final long ROBUST_POWER_MASK = 0x1L << ROBUST_POWER_SHIFT;
+        private static final int ROBUST_FAULT_SHIFT = 4;
+        private static final long ROBUST_FAULT_MASK = 0xFFL << ROBUST_FAULT_SHIFT;
+        private static final int ROBUST_EAST_SHIFT = 12;
+        private static final long ROBUST_EAST_MASK = 0xFFFFL << ROBUST_EAST_SHIFT;
+        private static final int ROBUST_NORTH_SHIFT = 28;
+        private static final long ROBUST_NORTH_MASK = 0xFFFFL << ROBUST_NORTH_SHIFT;
+        private static final int ROBUST_CYCLES_SHIFT = 44;
+        private static final long ROBUST_CYCLES_MASK = 0xFFFFFL << ROBUST_CYCLES_SHIFT;
+        private static final int ROBUST_STATE_GR = 0;
+        private static final int ROBUST_STATE_YR = 1;
+        private static final int ROBUST_STATE_RR = 2;
+        private static final int ROBUST_STATE_RG = 3;
+        private static final int ROBUST_STATE_RY = 4;
+        private static final int ROBUST_STATE_FF = 5;
+
+        private PrimitivePackedMachines() {}
+
+        static final long simpleCreate(SimpleOrderPayload payload) {
+            return packSimple(payload.id(), payload.cents(), payload.revision(), SIMPLE_STATE_DRAFT);
+        }
+
+        static final long simplePay(long order) {
+            return (order & ~SIMPLE_STATE_MASK) | SIMPLE_STATE_PAID;
+        }
+
+        static final long simpleShip(long order) {
+            return (order & ~SIMPLE_STATE_MASK) | SIMPLE_STATE_SHIPPED;
+        }
+
+        static final long simpleReset(long order) {
+            return packSimple(simpleId(order), simpleCents(order), simpleRevision(order) + 1, SIMPLE_STATE_DRAFT);
+        }
+
+        static final int simpleChecksum(long order) {
+            return simpleState(order) + simpleRevision(order);
+        }
+
+        static final long robustInit(IntersectionPayload payload) {
+            return packRobust(
+                    payload.cycles(),
+                    payload.northSouthGreenCount(),
+                    payload.eastWestGreenCount(),
+                    payload.faultCount(),
+                    payload.powerOn(),
+                    ROBUST_STATE_RR);
+        }
+
+        static final long robustNorthSouthFirst(long intersection) {
+            return packRobust(
+                    robustCycles(intersection) + 1,
+                    robustNorth(intersection) + 1,
+                    robustEast(intersection),
+                    robustFaults(intersection),
+                    true,
+                    ROBUST_STATE_GR);
+        }
+
+        static final long robustEastWestFirst(long intersection) {
+            return packRobust(
+                    robustCycles(intersection) + 1,
+                    robustNorth(intersection),
+                    robustEast(intersection) + 1,
+                    robustFaults(intersection),
+                    true,
+                    ROBUST_STATE_RG);
+        }
+
+        static final long robustNext(long intersection) {
+            return switch (robustState(intersection)) {
+                case ROBUST_STATE_GR -> packRobust(
+                        robustCycles(intersection),
+                        robustNorth(intersection),
+                        robustEast(intersection),
+                        robustFaults(intersection),
+                        true,
+                        ROBUST_STATE_YR);
+                case ROBUST_STATE_YR -> packRobust(
+                        robustCycles(intersection),
+                        robustNorth(intersection),
+                        robustEast(intersection),
+                        robustFaults(intersection),
+                        true,
+                        ROBUST_STATE_RR);
+                case ROBUST_STATE_RG -> packRobust(
+                        robustCycles(intersection),
+                        robustNorth(intersection),
+                        robustEast(intersection),
+                        robustFaults(intersection),
+                        true,
+                        ROBUST_STATE_RY);
+                case ROBUST_STATE_RY -> packRobust(
+                        robustCycles(intersection),
+                        robustNorth(intersection),
+                        robustEast(intersection),
+                        robustFaults(intersection),
+                        true,
+                        ROBUST_STATE_RR);
+                default -> intersection;
+            };
+        }
+
+        static final long robustFault(long intersection) {
+            return packRobust(
+                    robustCycles(intersection),
+                    robustNorth(intersection),
+                    robustEast(intersection),
+                    robustFaults(intersection) + 1,
+                    false,
+                    ROBUST_STATE_FF);
+        }
+
+        static final long robustRestore(long intersection) {
+            return packRobust(
+                    robustCycles(intersection),
+                    robustNorth(intersection),
+                    robustEast(intersection),
+                    robustFaults(intersection),
+                    true,
+                    ROBUST_STATE_RR);
+        }
+
+        static final int robustChecksum(long intersection) {
+            return robustState(intersection) + robustFaults(intersection) + robustEast(intersection) + robustNorth(intersection);
+        }
+
+        static final long packSimple(long id, int cents, int revision, int state) {
+            return ((id & 0x3FFFFFFFL) << SIMPLE_ID_SHIFT)
+                    | (((long) cents & 0xFFFFL) << SIMPLE_CENTS_SHIFT)
+                    | (((long) revision & 0xFFFFL) << SIMPLE_REVISION_SHIFT)
+                    | (state & SIMPLE_STATE_MASK);
+        }
+
+        static final int simpleState(long order) {
+            return (int) (order & SIMPLE_STATE_MASK);
+        }
+
+        static final int simpleRevision(long order) {
+            return (int) ((order & SIMPLE_REVISION_MASK) >>> SIMPLE_REVISION_SHIFT);
+        }
+
+        static final int simpleCents(long order) {
+            return (int) ((order & SIMPLE_CENTS_MASK) >>> SIMPLE_CENTS_SHIFT);
+        }
+
+        static final long simpleId(long order) {
+            return (order & SIMPLE_ID_MASK) >>> SIMPLE_ID_SHIFT;
+        }
+
+        static final long packRobust(long cycles, int north, int east, int faults, boolean powerOn, int state) {
+            return ((cycles & 0xFFFFFL) << ROBUST_CYCLES_SHIFT)
+                    | (((long) north & 0xFFFFL) << ROBUST_NORTH_SHIFT)
+                    | (((long) east & 0xFFFFL) << ROBUST_EAST_SHIFT)
+                    | (((long) faults & 0xFFL) << ROBUST_FAULT_SHIFT)
+                    | ((powerOn ? 1L : 0L) << ROBUST_POWER_SHIFT)
+                    | (state & ROBUST_STATE_MASK);
+        }
+
+        static final int robustState(long intersection) {
+            return (int) (intersection & ROBUST_STATE_MASK);
+        }
+
+        static final boolean robustPower(long intersection) {
+            return (intersection & ROBUST_POWER_MASK) != 0L;
+        }
+
+        static final int robustFaults(long intersection) {
+            return (int) ((intersection & ROBUST_FAULT_MASK) >>> ROBUST_FAULT_SHIFT);
+        }
+
+        static final int robustEast(long intersection) {
+            return (int) ((intersection & ROBUST_EAST_MASK) >>> ROBUST_EAST_SHIFT);
+        }
+
+        static final int robustNorth(long intersection) {
+            return (int) ((intersection & ROBUST_NORTH_MASK) >>> ROBUST_NORTH_SHIFT);
+        }
+
+        static final long robustCycles(long intersection) {
+            return (intersection & ROBUST_CYCLES_MASK) >>> ROBUST_CYCLES_SHIFT;
         }
     }
 
@@ -691,5 +897,21 @@ public final class StateMachineBenchmarkSupport {
         hole.consume(payload.eastWestGreenCount());
         hole.consume(payload.faultCount());
         hole.consume(payload.powerOn());
+    }
+
+    static final void consumeSimplePacked(Blackhole hole, long order) {
+        hole.consume(PrimitivePackedMachines.simpleId(order));
+        hole.consume(PrimitivePackedMachines.simpleCents(order));
+        hole.consume(PrimitivePackedMachines.simpleRevision(order));
+        hole.consume(PrimitivePackedMachines.simpleState(order));
+    }
+
+    static final void consumeIntersectionPacked(Blackhole hole, long intersection) {
+        hole.consume(PrimitivePackedMachines.robustCycles(intersection));
+        hole.consume(PrimitivePackedMachines.robustNorth(intersection));
+        hole.consume(PrimitivePackedMachines.robustEast(intersection));
+        hole.consume(PrimitivePackedMachines.robustFaults(intersection));
+        hole.consume(PrimitivePackedMachines.robustPower(intersection));
+        hole.consume(PrimitivePackedMachines.robustState(intersection));
     }
 }

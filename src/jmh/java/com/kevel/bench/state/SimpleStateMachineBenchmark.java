@@ -1,9 +1,11 @@
 package com.kevel.bench.state;
 
 import static com.kevel.bench.state.StateMachineBenchmarkSupport.BOX_HELPER;
+import static com.kevel.bench.state.StateMachineBenchmarkSupport.PrimitivePackedMachines;
 import static com.kevel.bench.state.StateMachineBenchmarkSupport.SIMPLE_SEED;
 import static com.kevel.bench.state.StateMachineBenchmarkSupport.SIMPLE_TRANSITIONS;
 import static com.kevel.bench.state.StateMachineBenchmarkSupport.consumeSimple;
+import static com.kevel.bench.state.StateMachineBenchmarkSupport.consumeSimplePacked;
 
 import com.kevel.bench.state.StateMachineBenchmarkSupport.BenchmarkBase;
 import com.kevel.bench.state.StateMachineBenchmarkSupport.BenchmarkState;
@@ -34,6 +36,8 @@ import org.openjdk.jmh.infra.Blackhole;
  *   <li>{@code statelessEnum_hotLoop}: isolates the cost of a stateless functional style.
  *   <li>{@code typestate_hotLoop}: shows whether wrapper allocations disappear in a hot loop when
  *       the JVM can apply escape analysis.
+ *   <li>{@code primitivePacked_hotLoop}: measures a low-level packed-long implementation that aims
+ *       to minimize allocations and maximize throughput.
  *   <li>{@code boxTypestate_hotLoop}: measures the lightweight tagged-box approach used in this
  *       repository.
  *   <li>{@code sealed_hotLoop}: captures the cost of explicit state classes with fresh instances.
@@ -106,6 +110,25 @@ public class SimpleStateMachineBenchmark extends BenchmarkBase {
             draft = TypedOrders.reset(shipped);
         }
         return draft.payload().revision();
+    }
+
+    /**
+     * Primitive-packed stateless implementation.
+     *
+     * <p>This benchmark exists to measure the style most likely to minimize runtime overhead: one
+     * packed {@code long}, primitive field updates, and {@code static final} transition helpers. It
+     * is the strongest baseline for teams optimizing for throughput and low allocation while still
+     * keeping the transition logic explicit.
+     */
+    @Benchmark
+    public int primitivePacked_hotLoop() {
+        long order = PrimitivePackedMachines.simpleCreate(SIMPLE_SEED);
+        for (int step = 0; step < SIMPLE_TRANSITIONS; step++) {
+            order = PrimitivePackedMachines.simplePay(order);
+            order = PrimitivePackedMachines.simpleShip(order);
+            order = PrimitivePackedMachines.simpleReset(order);
+        }
+        return PrimitivePackedMachines.simpleChecksum(order);
     }
 
     /**
@@ -206,6 +229,27 @@ public class SimpleStateMachineBenchmark extends BenchmarkBase {
         }
         for (SimpleOrderPayload payload : state.simpleSink) {
             consumeSimple(hole, payload);
+        }
+    }
+
+    /**
+     * Primitive-packed stateless implementation with forced escape.
+     *
+     * <p>This benchmark shows what happens when a packed primitive representation must survive
+     * beyond the hot method. Even here, the implementation avoids object allocation by writing into
+     * a primitive {@code long[]} sink rather than an object array.
+     */
+    @Benchmark
+    public void primitivePacked_escape(BenchmarkState state, Blackhole hole) {
+        long order = PrimitivePackedMachines.simpleCreate(SIMPLE_SEED);
+        for (int step = 0; step < SIMPLE_TRANSITIONS; step++) {
+            order = PrimitivePackedMachines.simplePay(order);
+            order = PrimitivePackedMachines.simpleShip(order);
+            order = PrimitivePackedMachines.simpleReset(order);
+            state.simplePackedSink[step] = order;
+        }
+        for (long packedOrder : state.simplePackedSink) {
+            consumeSimplePacked(hole, packedOrder);
         }
     }
 
