@@ -711,6 +711,33 @@ This is why `Box<Tag, T>` works well as a typestate utility in this repository: 
 - If throughput and latency are critical, consider a truly low-level stateless design based on primitive arguments, packed state, and `static final` transition functions.
 - If you use typestate or sealed wrappers, keep the object shape small and the transition bodies tiny so the JVM has the best chance to inline and optimize aggressively.
 
+### Packed primitives
+
+Another important implementation style is a packed-primitive state machine. In this design, the machine state is stored in one or a few primitive values, often a single `long`, and transitions are implemented as `static final` helper methods that unpack, update, and repack the bits.
+
+- This style is effectively allocation-free in steady-state code because transitions operate on primitives instead of allocating wrapper objects.
+- It is often the best choice when throughput, latency, and GC avoidance matter more than rich object modeling.
+- It works especially well for tight loops, stream processors, protocol engines, schedulers, embedded-style logic, and other hot paths.
+- It also makes escape cases cheaper, because state can be stored in primitive arrays such as `long[]` instead of object collections.
+
+The tradeoff is readability and ergonomics.
+
+- Packed state is less self-documenting than typestate or sealed classes.
+- Bit layout must be designed carefully and maintained consistently.
+- Debugging and ad hoc inspection are usually harder.
+- Compiler-checked transition safety is weaker unless the packed representation is wrapped behind a carefully designed API.
+
+In benchmark terms, this style is the "performance floor" for state machines in Java. The packed-`long` benchmarks in `src/jmh/java/com/kevel/bench/state/` were the fastest implementations in both the simple and robust scenarios, and they were effectively allocation-free with near-zero `B/op` and almost no GC activity.
+
+As a rule of thumb, choose packed primitives when:
+
+- the machine sits on a hot path,
+- object allocation or GC pauses are a real concern,
+- the state graph is stable and well understood,
+- and the team is comfortable trading some readability for performance.
+
+If those conditions do not hold, typestate is often a better default because it preserves most of the performance discipline while remaining much easier to read, evolve, and use safely.
+
 ### Rule of thumb
 
 If you want the best balance of correctness and performance in ordinary Java application code, typestate is often the sweet spot:
