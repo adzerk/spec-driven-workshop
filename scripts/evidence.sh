@@ -54,7 +54,7 @@ usage() {
   printf '  //=> type <TypeName>    Expect variable type to match\n'
   printf '                          For js/ts, type is checked with var.constructor.name\n'
   printf '  //=> throws <Exception> Expect an exception to be thrown\n'
-  printf '  //*                     Consume output but assert nothing\n'
+  printf '  //*                     Expect any non-exception output\n'
   printf '\n'
   printf 'Example evidence blocks:\n'
   printf '  ```javascript\n'
@@ -606,7 +606,14 @@ check_expectation() {
   local raw_actual
   raw_actual="$(output_blob)"
 
-  if [[ "$expectation" == throws* ]]; then
+  if [[ "$expectation" == "__ANY_OUTPUT__" ]]; then
+    normalize_actual_output "throws" "$raw_actual"
+    debug_log_normalized "any-output" "$raw_actual"
+    if [[ "$NORMALIZED_KIND" == "value" ]]; then
+      return
+    fi
+    fail_mismatch "$markdown_file" "$source_line" "$input_line" "any non-exception output" "$(format_actual_for_display)"
+  elif [[ "$expectation" == throws* ]]; then
     local expected_exception
     expected_exception="${expectation#throws }"
     expected_exception="$(trim "$expected_exception")"
@@ -671,7 +678,6 @@ process_code_line() {
 
   local statement="$line"
   local expectation=""
-  local consume_only=0
 
   if [[ "$line" == *"//=> "* ]]; then
     statement="${line%%//=>*}"
@@ -679,7 +685,7 @@ process_code_line() {
     expectation="$(trim "$expectation")"
   elif [[ "$line" == *"//*"* ]]; then
     statement="${line%%//*}"
-    consume_only=1
+    expectation="__ANY_OUTPUT__"
   fi
 
   statement="${statement%${statement##*[![:space:]]}}"
@@ -690,9 +696,6 @@ process_code_line() {
 
   send_and_capture "$statement"
 
-  if (( consume_only == 1 )); then
-    return
-  fi
   if [[ -n "$expectation" ]]; then
     check_expectation "$markdown_file" "$source_line" "$statement" "$expectation"
   fi
