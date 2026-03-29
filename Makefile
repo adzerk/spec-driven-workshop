@@ -20,11 +20,11 @@ ifeq ($(shell uname -s),Linux)
 	# you might also want:
 	# -rf json
 	# -rff my-bench-results.json
-	#JMH_ARGS ?= -prof comp -prof gc -prof perf
-	JMH_ARGS ?= -prof comp -prof gc -prof perf ".*Tap.*Thru.*"
+	# `-prof gc` reports both GC behavior and allocation metrics such as `gc.alloc.rate` and `gc.alloc.rate.norm`.
+	JMH_ARGS ?= -prof comp -prof gc ".*StateMachineBenchmark.*"
 else
 	# Assumes MacOS/OSX
-	JMH_ARGS ?= -prof comp -prof gc
+	JMH_ARGS ?= -prof comp -prof gc ".*StateMachineBenchmark.*"
 	#JMH_ARGS ?= -prof comp -prof gc -prof dtraceasm ".*Pedestal.*Thru.*"
 endif
 
@@ -71,6 +71,11 @@ check: format
 .PHONY : test
 test:
 	@JAVA_HOME=$(JHOME) $(MVN) test
+
+.PHONY : bench
+bench:
+	@JAVA_HOME=$(JHOME) $(MVN) -P jmh -DskipTests package \
+	&& $(JAVA) -jar target/benchmarks.jar $(JMH_ARGS)
 
 .PHONY : jml
 jml:
@@ -163,4 +168,3 @@ tooling_Darwin:
 	&& wget $(openjml_url)/$(openjml_version) \
 	&& unzip $(openjml_version) \
 	&& rm $(openjml_version)
-

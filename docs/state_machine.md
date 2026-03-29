@@ -675,3 +675,46 @@ That leads to a useful rule of thumb:
 - use tags alone for lightweight internal typestate,
 - use tags plus witnesses for trusted capability minting,
 - and use dedicated state classes when behavior differs substantially by state.
+
+## Performance Considerations
+
+State-machine performance in Java depends less on the abstract pattern name and more on the runtime shape of the implementation.
+
+- The fastest designs usually minimize heap allocation, object churn, and unpredictable branching.
+- `static final` helpers, immutable payloads, and small transition methods are generally good for inlining and JIT optimization.
+- A "stateless" design is only low-overhead if the state is carried in cheap values such as primitives or packed data, not if each transition allocates a fresh wrapper object.
+- Benchmark hot-loop and escaping cases separately. A design can look fast when the JVM keeps values local, but behave differently when intermediate states must be stored or observed.
+
+### Why typestate is often a strong performance choice
+
+Typestate is a particularly attractive low-overhead option in Java because the state marker lives in the type system.
+
+- Generic type parameters are erased at runtime, so `Order<Draft>` and `Order<Paid>` are the same runtime class shape.
+- That means the compiler-checked state marker itself is essentially free at runtime.
+- The remaining cost comes from the payload and wrapper objects you choose to allocate, not from the phantom type.
+- In practice, typestate can be close to the cost of other lightweight immutable wrappers while giving much stronger compile-time guarantees.
+
+This is why `Box<Tag, T>` works well as a typestate utility in this repository: the tag is compile-time only, and the runtime object is still just a small immutable wrapper around `T`.
+
+### Common performance pitfalls
+
+- Avoid assuming that all immutable or stateless designs are automatically fast.
+- A stateless API that returns a new record or wrapper on every transition may allocate heavily.
+- Carrying an explicit runtime `enum` field in each wrapper can be more expensive than encoding the state in the type parameter.
+- Sealed-state models are often very clear, but may allocate a new object per transition unless carefully designed.
+
+### Practical guidance for low-overhead implementations
+
+- Use `enum` plus mutation when raw simplicity and minimal allocation matter more than compile-time transition safety.
+- Use typestate when you want compiler-checked transitions with very little intrinsic runtime overhead.
+- Use sealed state types when clarity, explicit behavior, or JML friendliness matter more than minimizing wrapper churn.
+- If throughput and latency are critical, consider a truly low-level stateless design based on primitive arguments, packed state, and `static final` transition functions.
+- If you use typestate or sealed wrappers, keep the object shape small and the transition bodies tiny so the JVM has the best chance to inline and optimize aggressively.
+
+### Rule of thumb
+
+If you want the best balance of correctness and performance in ordinary Java application code, typestate is often the sweet spot:
+
+- stronger guarantees than enums,
+- usually less runtime baggage than richer runtime-tagged wrappers,
+- and a much lower conceptual and runtime cost than many developers expect.

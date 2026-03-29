@@ -23,14 +23,19 @@
     <spotbugs.maven.plugin.version>4.9.8.2</spotbugs.maven.plugin.version>
 
     <errorprone.version>2.48.0</errorprone.version>
+    <jmh.version>1.37</jmh.version>
 
     <spotless.maven.plugin.version>3.3.0</spotless.maven.plugin.version>
     <google.java.format.version>1.35.0</google.java.format.version>
     <palantir.java.format.version>2.90.0</palantir.java.format.version>
+    <build.helper.maven.plugin.version>3.6.1</build.helper.maven.plugin.version>
+    <exec.maven.plugin.version>3.6.2</exec.maven.plugin.version>
 
     <owasp.dependency-check.version>12.2.0</owasp.dependency-check.version>
 
     <maven.shade.version>3.6.2</maven.shade.version>
+    <jmh.args>.*StateMachineBenchmark.*</jmh.args>
+    <jmh.output.jar>${project.build.directory}/benchmarks.jar</jmh.output.jar>
   </properties>
 
   <dependencies>
@@ -171,6 +176,92 @@
           <version>1.12.4</version>
         </dependency>
       </dependencies>
+    </profile>
+
+    <profile>
+      <id>jmh</id>
+      <dependencies>
+        <dependency>
+          <groupId>org.openjdk.jmh</groupId>
+          <artifactId>jmh-core</artifactId>
+          <version>${jmh.version}</version>
+        </dependency>
+      </dependencies>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+            <version>${build.helper.maven.plugin.version}</version>
+            <executions>
+              <execution>
+                <id>add-jmh-source</id>
+                <phase>generate-sources</phase>
+                <goals>
+                  <goal>add-source</goal>
+                </goals>
+                <configuration>
+                  <sources>
+                    <source>src/jmh/java</source>
+                  </sources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <version>${maven.compiler.plugin.version}</version>
+            <configuration>
+              <release>${maven.compiler.release}</release>
+              <fork>true</fork>
+              <executable>${project.basedir}/tooling/jdk-21.0.7+6/bin/javac</executable>
+              <annotationProcessorPaths>
+                <path>
+                  <groupId>org.openjdk.jmh</groupId>
+                  <artifactId>jmh-generator-annprocess</artifactId>
+                  <version>${jmh.version}</version>
+                </path>
+              </annotationProcessorPaths>
+            </configuration>
+          </plugin>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>${exec.maven.plugin.version}</version>
+            <configuration>
+              <mainClass>org.openjdk.jmh.Main</mainClass>
+              <classpathScope>compile</classpathScope>
+              <commandlineArgs>${jmh.args}</commandlineArgs>
+            </configuration>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-shade-plugin</artifactId>
+            <version>${maven.shade.version}</version>
+            <executions>
+              <execution>
+                <id>shade-jmh-benchmarks</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>shade</goal>
+                </goals>
+                <configuration>
+                  <createDependencyReducedPom>false</createDependencyReducedPom>
+                  <shadedArtifactAttached>false</shadedArtifactAttached>
+                  <outputFile>${jmh.output.jar}</outputFile>
+                  <transformers>
+                    <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                      <mainClass>org.openjdk.jmh.Main</mainClass>
+                    </transformer>
+                    <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+                  </transformers>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
     </profile>
   </profiles>
 
