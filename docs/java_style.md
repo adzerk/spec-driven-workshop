@@ -40,7 +40,7 @@ Model lifecycle and protocol behavior with sealed interfaces, records, enums, or
 
 Prefer designs that can be explained as "given state S and input I, produce state S' and output O".
 
-Reason: deterministic [state machines](state-machines.md) are easier to reason about, test, replay, verify, and evolve. They also expose invariants clearly.
+Reason: deterministic [state machines](state_machines.md) are easier to reason about, test, replay, verify, and evolve. They also expose invariants clearly.
 
 ### 3. Use only simple, explicit control flow.
 
