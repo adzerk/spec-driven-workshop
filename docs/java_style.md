@@ -236,7 +236,7 @@ High-performance Java begins with design, not micro-optimizations. The largest w
 
 - **Allocation**: Minimize allocation and object churn. In hot paths, target zero allocation when practical; pre-allocate during startup and reuse memory deliberately.
 - **Layout**: Design around data layout and access patterns, not only APIs. Prefer contiguous, cache-friendly layouts such as arrays, primitive arrays, and where appropriate, struct-of-arrays.
-- **Datflow**: Keep hot code simple and explicit so the JIT can inline, scalar-replace, and optimize it.
+- **Dataflow**: Keep hot code simple and explicit so the JIT can inline, scalar-replace, and optimize it.
 - **Bounded work**: Bound work and batch operations to amortize synchronization, parsing, system calls, and cache misses.
 - **Hot-path isolation**: Separate hot paths from cold paths. Push dynamic behavior, branching, I/O, and abstraction overhead to the edges of the system and always outside inner loops.
 - **Predictability**: Optimize for stable p95/p99 latency, not just peak throughput. Avoid unnecessary copies and move data only when the cost is justified.
