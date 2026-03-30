@@ -12,6 +12,24 @@ The priorities are:
 
 Style is not decoration. Style is design pressure applied early enough to prevent defects, simplify reasoning, and lower maintenance cost.
 
+## Quick Reference
+
+| Pattern | Rule |
+|---|---|
+| Design | State invariants, legal transitions, failures, and bounds before coding |
+| System shape | Prefer deterministic systems and explicit state machines |
+| Control flow | Keep control flow simple; bound loops; target 70 lines per method |
+| Bounds | Put a bound on queues, retries, buffers, input sizes, and in-flight work |
+| Error handling | Use `Result` for expected failures; exceptions only for exceptional failures |
+| Types | Prefer sealed types, records, and `Box<Tag, T>` over flags and raw primitives |
+| Assertions | Assert preconditions, postconditions, invariants, and bounds |
+| Arithmetic | Use exact arithmetic and explicit units; never assume no overflow |
+| Verification | Design for simulation, differential testing, and fault injection |
+| Concurrency | Prefer derterminisic concurrency, partitioned ownership, shared-nothing/message passing, and explicit ordering |
+| Performance | Target zero allocation in hot paths; avoid copies; prefer cache-friendly layouts |
+| Documentation | All classes and methods need Javadoc with preconditions, postconditions, invariants, exceptions, and safety requirements |
+| Tooling | Zero compiler warnings; zero normalized analyzer debt |
+
 ## The Rules
 
 ### 1. Design around invariants first.
@@ -435,15 +453,3 @@ Rules:
 - Are all warnings and analyzer checks clean?
 - Would this design and its implementation still be easy to evolve in a year?
 
-## Short Form
-
-- Invariants first.
-- Executable model.
-- Deterministic core with state machines.
-- Results over routine exceptions.
-- Types over flags.
-- Bounds over hope.
-- Assertions over comments.
-- Determinism over incidental concurrency.
-- Differential testing over intuition.
-- Simplicity over cleverness.
