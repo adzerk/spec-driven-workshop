@@ -109,14 +109,10 @@ Tradeoffs:
 - More verbose than enums.
 - Can become awkward for highly branching or cyclic graphs.
 
-This repository's `Box<Tag, T>` utility in `src/main/java/com/kevel/util/Box.java` is a useful lightweight tagged wrapper for this style.
-
 Example:
 
 ```java
 package com.kevel.examples;
-
-import com.kevel.util.Box;
 
 public final class TypestateOrder {
     interface Draft {}
@@ -125,28 +121,28 @@ public final class TypestateOrder {
 
     record OrderData(String id, int cents) {}
 
-    public static final class Order<S> {
-        private final Box<S, OrderData> data;
+    public static final class Order<State> {
+        private final OrderData data;
 
-        private Order(Box<S, OrderData> data) {
+        private Order(OrderData data) {
             this.data = data;
         }
 
         public OrderData data() {
-            return data.get();
+            return data;
         }
     }
 
     public static Order<Draft> create(String id, int cents) {
-        return new Order<>(Box.of(new OrderData(id, cents)));
+        return new Order<>(new OrderData(id, cents));
     }
 
     public static Order<Paid> pay(Order<Draft> draft) {
-        return new Order<>(draft.data.into());
+        return new Order<>(draft.data());
     }
 
     public static Order<Shipped> ship(Order<Paid> paid) {
-        return new Order<>(paid.data.into());
+        return new Order<>(paid.data());
     }
 
     public static void main(String[] args) {
@@ -159,6 +155,14 @@ public final class TypestateOrder {
     }
 }
 ```
+
+In practice, this repository's `Box<Tag, T>` utility in `src/main/java/com/kevel/util/Box.java`
+is a useful lightweight tagged wrapper for the same style:
+
+- use a bare generic wrapper when introducing typestate.
+- use `Box<Tag, T>` when you want a reusable tagged-value utility.
+- use `Box` especially when the payload should remain a simple record, `Map`, `String`, `Path`, or other existing runtime value.
+- use `Box` when your state machine is modeling capabilities or permissions.
 
 ### 3. Sealed interfaces and records with explicit transition methods
 
