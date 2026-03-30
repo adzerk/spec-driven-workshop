@@ -177,8 +177,8 @@ Suggested stack in this repo:
 
 - JUnit for examples and regression tests
 - jqwik for generated histories and metamorphic tests
-- Fray for concurrency schedules
-- OpenJML for method-level contracts
+- Fray for concurrency testing / concurrency schedules
+- OpenJML for method-level contracts and system invariants
 - JBMC for bounded edge cases in critical kernels
 
 Reason: the harness is the trust boundary. The model is useful only if it remains connected to the implementation.
