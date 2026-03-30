@@ -25,7 +25,7 @@ Style is not decoration. Style is design pressure applied early enough to preven
 | Assertions | Assert preconditions, postconditions, invariants, and bounds |
 | Arithmetic | Use exact arithmetic and explicit units; never assume no overflow |
 | Verification | Design for simulation, differential testing, and fault injection |
-| Concurrency | Prefer derterminisic concurrency, partitioned ownership, shared-nothing/message passing, and explicit ordering |
+| Concurrency | Prefer deterministic concurrency, partitioned ownership, shared-nothing/message passing, and explicit ordering |
 | Performance | Target zero allocation in hot paths; avoid copies; prefer cache-friendly layouts |
 | Documentation | All classes and methods need Javadoc with preconditions, postconditions, invariants, exceptions, and safety requirements |
 | Tooling | Zero compiler warnings; zero normalized analyzer debt |
@@ -230,55 +230,45 @@ Reason: incidental concurrency destroys local reasoning. Deterministic or carefu
 
 ## High-Performance Java
 
-High-performance Java begins with design, not micro-optimizations. The biggest wins usually come from choosing the right data layout, ownership model, memory strategy, and control flow shape before the code is written. Optimize for safety and predictability first; throughput and latency usually follow.
+High-performance Java begins with design, not micro-optimizations. The largest wins usually come from choosing the right data layout, ownership model, memory strategy, and control flow shape before the code is written. Prefer safety, explainable behavior and predictability first; throughput and latency usually follow.
 
 ### Core Principles
 
-- Minimize allocation and object churn. Fewer objects usually means less GC pressure, better locality, and more predictable latency.
-- Prefer simple, explicit data flow. Hot code should be easy for the JIT to inline, scalar-replace, and optimize.
-- Design around data layout and access patterns, not only APIs. Contiguous, predictable access beats pointer-chasing.
-- Prefer cache-friendly layouts such as arrays, primitive arrays, and where appropriate, struct-of-arrays over object-heavy graphs.
-- Bound work and batch operations. Amortize fixed costs such as synchronization, parsing, system calls, and cache misses.
-- Separate hot paths from cold paths. Keep the common case tiny, explicit, and boring.
-- Push dynamic behavior, branching, I/O, and abstraction overhead to the edges of your system and absolutely outside of inner loops.
-- Optimize for predictability, not just peak throughput. Stable p95 and p99 latency usually matter more than occasional wins.
-- Target zero allocation in the hot path. Pre-allocate during startup and reuse memory deliberately.
-- Avoid unnecessary copies. Prefer zero-copy techniques and data movement only when it is clearly worth the cost.
+- **Allocation**: Minimize allocation and object churn. In hot paths, target zero allocation when practical; pre-allocate during startup and reuse memory deliberately.
+- **Layout**: Design around data layout and access patterns, not only APIs. Prefer contiguous, cache-friendly layouts such as arrays, primitive arrays, and where appropriate, struct-of-arrays.
+- **Datflow**: Keep hot code simple and explicit so the JIT can inline, scalar-replace, and optimize it.
+- **Bounded work**: Bound work and batch operations to amortize synchronization, parsing, system calls, and cache misses.
+- **Hot-path isolation**: Separate hot paths from cold paths. Push dynamic behavior, branching, I/O, and abstraction overhead to the edges of the system and always outside inner loops.
+- **Predictability**: Optimize for stable p95/p99 latency, not just peak throughput. Avoid unnecessary copies and move data only when the cost is justified.
 
 ### Mechanical Sympathy
 
 When deciding how to implement something, reason from the hardware and runtime upward:
 
-- `CPU caches`: cache misses are often the real bottleneck. Favor compact data, sequential access, and layouts that keep the working set hot in cache.
-- `Data layout`: layout drives performance. Prefer primitive arrays, compact value carriers, and struct-of-arrays style layouts when they improve locality and traversal cost.
-- `Branch prediction`: unpredictable branches are expensive. Flatten hot-path conditionals and bias for the common case.
-- `Allocation and GC`: allocation is cheap until retention, promotion, and pause behavior make it expensive. In performance-critical code, the target is often zero allocation in the hot path, minimize allocations where possible.
-- `Managed memory reuse`: pre-allocate reusable objects, use pools carefully, and use managed buffers or arenas where reuse is explicit and bounded.
-- `Copies and movement`: copying data consumes memory bandwidth and pollutes caches. Prefer zero-copy APIs, slices, and views where ownership remains clear.
-- `Off-heap working sets`: off-heap buffers are often valuable as an arena for performance-critical working data, especially when zero-copy semantics and tight memory control matter.
-- `Inlining`: small, monomorphic, obvious methods are easier for HotSpot to optimize. Deep abstraction stacks can block optimization.
-- `Escape analysis`: local, non-escaping objects may disappear; shared or escaping objects usually become real allocations.
-- `Boxing`: accidental boxing in streams, generics, lambdas, and collections can quietly dominate hot paths.
-- `Synchronization`: contention, false sharing, and cross-core cache traffic are expensive. When concurrency is necessary, prefer lock-free algorithms or ownership models that avoid contention entirely.
-- `Context switching`: reduce context switching. Waking threads, bouncing work between executors, or oversharding work can destroy throughput and tail latency.
-- `Memory bandwidth`: scattered reads, large copies, and oversized object graphs can saturate memory before CPU.
-- `Constant folding and stable shapes`: use `static final` constants and other stable structures to help the compiler fold constants, simplify code paths, and optimize generated code.
-- `Tail latency`: one surprise allocation, one slow copy, one blocking lock, or one scheduler handoff can dominate overall behavior.
+- **Caches and bandwidth**: Cache misses are often the real bottleneck. Favor compact data, sequential access, and layouts that keep the working set hot. Scattered reads, large copies, and oversized object graphs can saturate memory bandwidth before CPU.
+- **Branching**: Unpredictable branches are expensive. Flatten hot-path conditionals and bias for the common case.
+- **Escape analysis**: Local, non-escaping objects may be scalar-replaced by HotSpot; shared or escaping objects become real allocations.
+- **Off-heap working sets**: Off-heap buffers can be useful as a controlled arena for performance-critical working data, especially when zero-copy semantics and tight memory control matter.
+- **JIT friendliness**: Small, monomorphic methods inline best; deep abstraction stacks can block optimization. Stable shapes, `static final` constants, and simple control flow help HotSpot fold constants, simplify code paths, and optimize generated code.
+- **Synchronization**: Contention, false sharing, and cross-core cache traffic are expensive. When needed, prefer partitioned ownership, one-writer designs, and lock-free algorithms.
+- **Context switching**: Waking threads, bouncing work between executors, and oversharding can destroy throughput and tail latency. Reduce unnecessary handoffs.
+- **Tail latency**: One surprise allocation, copy, blocking lock, or scheduler hop can dominate p95 and p99 behavior.
 
 ### Implementation Heuristics
 
-- Prefer primitives over boxed types in hot code.
+- Prefer primitives over boxed types in hot code. Watch for accidental boxing in streams, lambdas, generics, and collections -- these can quietly dominate hot paths.
 - Prefer arrays, primitive buffers, or struct-of-arrays layouts over nested object graphs when performance matters.
-- Pre-allocate at startup when possible. If reuse is necessary, prefer bounded pools or managed buffers over ad hoc allocation.
-- Aim for zero allocation in the hot path.
-- Avoid copying. Prefer slices, views, flyweights, and zero-copy APIs where ownership rules are clear.
-- Consider off-heap buffers for performance-critical working sets that benefit from tight control and reuse.
-- Prefer `static final` constants for fixed limits, masks, shifts, lookup data, and configuration known at compile time.
-- Prefer one writer, partitioned ownership, or shared-nothing designs over heavily shared mutable state.
-- If concurrency is necessary and justified, prefer lock-free algorithms when they are simpler and safer than contended locking.
-- Prefer measured batching over per-item synchronization or I/O.
-- Prefer exact bounds and explicit capacities.
-- Prefer a simple handwritten loop over a fancy abstraction in hot paths.
+- Pre-allocate at startup when possible. When appropriate, use reusable objects, bounded pools, managed buffers, or arenas only when ownership, lifetime, and limits are explicit.
+- Avoid copying. Prefer slices, views, flyweights, and zero-copy APIs when ownership remains clear.
+- Consider off-heap buffers for performance-critical working sets that benefit from tighter memory control or zero-copy boundaries.
+- Prefer `static final` constants for fixed limits, masks, shifts, lookup tables, and compile-time configuration.
+- Prefer batching, exact bounds, explicit capacities, and simple handwritten loops in hot paths.
+
+Suggested practice in this repo:
+
+- JMH for micro-benchmarks and throughput/latency measurement
+- `perf` and/or async-profiler for CPU and allocation profiling
+- JFR (Java Flight Recorder) and JMC (Java Mission Control) for production-grade allocation, GC, and latency analysis
 
 ## Java 21 Guidelines
 
