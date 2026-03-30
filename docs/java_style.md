@@ -73,7 +73,7 @@ Reason: real systems have limits. Explicit bounds prevent infinite loops, latenc
 
 For domain, validation, parsing, lookup, and state-transition failures, return `Result<T, E>`.
 
-- Model `E` with an `enum` or sealed error hierarchy. `E` can also be an Exception to bridge worlds.
+- Model `E` with an `enum` or sealed error hierarchy. `E` can also be an Exception to bridge between Results and Exceptions.
 - Handle `Result` explicitly with `switch`, `map`, `flatMap`, or `fold`.
 - Do not ignore `Result` values.
 - Do not call `get()` on an `Err` in production logic.
@@ -84,6 +84,8 @@ Use exceptions only for:
 - impossible states;
 - programmer errors;
 - infrastructure failures that are truly exceptional at the current layer.
+
+Use checked exceptions for exceptional situations outside the control of the program.
 
 Reason: foreseeable production failures are part of ordinary behavior and should be represented as data. This keeps control flow explicit and makes error handling testable. See `src/main/java/com/kevel/util/Result.java`.
 
@@ -208,6 +210,58 @@ Suggested practice in this repo:
 
 Reason: incidental concurrency destroys local reasoning. Deterministic or carefully partitioned concurrency preserves intellectual control, simplifies verification, improves replayability, and lowers long-term maintenance cost.
 
+## High-Performance Java
+
+High-performance Java begins with design, not micro-optimizations. The biggest wins usually come from choosing the right data layout, ownership model, memory strategy, and control flow shape before the code is written. Optimize for safety and predictability first; throughput and latency usually follow.
+
+### Core Principles
+
+- Minimize allocation and object churn. Fewer objects usually means less GC pressure, better locality, and more predictable latency.
+- Prefer simple, explicit data flow. Hot code should be easy for the JIT to inline, scalar-replace, and optimize.
+- Design around data layout and access patterns, not only APIs. Contiguous, predictable access beats pointer-chasing.
+- Prefer cache-friendly layouts such as arrays, primitive arrays, and where appropriate, struct-of-arrays over object-heavy graphs.
+- Bound work and batch operations. Amortize fixed costs such as synchronization, parsing, system calls, and cache misses.
+- Separate hot paths from cold paths. Keep the common case tiny, explicit, and boring.
+- Push dynamic behavior, branching, I/O, and abstraction overhead to the edges of your system and absolutely outside of inner loops.
+- Optimize for predictability, not just peak throughput. Stable p95 and p99 latency usually matter more than occasional wins.
+- Target zero allocation in the hot path. Pre-allocate during startup and reuse memory deliberately.
+- Avoid unnecessary copies. Prefer zero-copy techniques and data movement only when it is clearly worth the cost.
+
+### Mechanical Sympathy
+
+When deciding how to implement something, reason from the hardware and runtime upward:
+
+- `CPU caches`: cache misses are often the real bottleneck. Favor compact data, sequential access, and layouts that keep the working set hot in cache.
+- `Data layout`: layout drives performance. Prefer primitive arrays, compact value carriers, and struct-of-arrays style layouts when they improve locality and traversal cost.
+- `Branch prediction`: unpredictable branches are expensive. Flatten hot-path conditionals and bias for the common case.
+- `Allocation and GC`: allocation is cheap until retention, promotion, and pause behavior make it expensive. In performance-critical code, the target is often zero allocation in the hot path, minimize allocations where possible.
+- `Managed memory reuse`: pre-allocate reusable objects, use pools carefully, and use managed buffers or arenas where reuse is explicit and bounded.
+- `Copies and movement`: copying data consumes memory bandwidth and pollutes caches. Prefer zero-copy APIs, slices, and views where ownership remains clear.
+- `Off-heap working sets`: off-heap buffers are often valuable as an arena for performance-critical working data, especially when zero-copy semantics and tight memory control matter.
+- `Inlining`: small, monomorphic, obvious methods are easier for HotSpot to optimize. Deep abstraction stacks can block optimization.
+- `Escape analysis`: local, non-escaping objects may disappear; shared or escaping objects usually become real allocations.
+- `Boxing`: accidental boxing in streams, generics, lambdas, and collections can quietly dominate hot paths.
+- `Synchronization`: contention, false sharing, and cross-core cache traffic are expensive. When concurrency is necessary, prefer lock-free algorithms or ownership models that avoid contention entirely.
+- `Context switching`: reduce context switching. Waking threads, bouncing work between executors, or oversharding work can destroy throughput and tail latency.
+- `Memory bandwidth`: scattered reads, large copies, and oversized object graphs can saturate memory before CPU.
+- `Constant folding and stable shapes`: use `static final` constants and other stable structures to help the compiler fold constants, simplify code paths, and optimize generated code.
+- `Tail latency`: one surprise allocation, one slow copy, one blocking lock, or one scheduler handoff can dominate overall behavior.
+
+### Implementation Heuristics
+
+- Prefer primitives over boxed types in hot code.
+- Prefer arrays, primitive buffers, or struct-of-arrays layouts over nested object graphs when performance matters.
+- Pre-allocate at startup when possible. If reuse is necessary, prefer bounded pools or managed buffers over ad hoc allocation.
+- Aim for zero allocation in the hot path.
+- Avoid copying. Prefer slices, views, flyweights, and zero-copy APIs where ownership rules are clear.
+- Consider off-heap buffers for performance-critical working sets that benefit from tight control and reuse.
+- Prefer `static final` constants for fixed limits, masks, shifts, lookup data, and configuration known at compile time.
+- Prefer one writer, partitioned ownership, or shared-nothing designs over heavily shared mutable state.
+- If concurrency is necessary and justified, prefer lock-free algorithms when they are simpler and safer than contended locking.
+- Prefer measured batching over per-item synchronization or I/O.
+- Prefer exact bounds and explicit capacities.
+- Prefer a simple handwritten loop over a fancy abstraction in hot paths.
+
 ## Java 21 Guidelines
 
 ### Prefer sealed domains.
@@ -239,6 +293,81 @@ If state is shared, say so clearly. If it is confined to one thread, partition, 
 
 Every `switch` on a sealed type should feel like a proof that every case is handled.
 Prefer switch expressions for all conditional handling.
+
+### Documentation
+
+Documentation is part of the safety case. It must make the intended semantics, constraints, and trust boundaries explicit enough for reviewers, maintainers, test authors, and verification tools to work from the same mental model.
+
+#### Javadoc requirements
+
+All classes and methods must have Javadoc.
+
+For methods, Javadoc must document:
+
+- preconditions;
+- postconditions;
+- preserved invariants;
+- all exceptions that may be thrown;
+- all safety requirements;
+- any concurrency, ownership, ordering, or mutability assumptions;
+- any bounds, units, or performance-sensitive behavior that callers must respect.
+
+Use standard Javadoc tags where appropriate:
+
+- `@param` for argument meaning and required properties
+- `@return` for semantic meaning of the result
+- `@throws` for all thrown exceptions and their conditions
+- `@implNote` for implementation constraints that matter to maintainers
+- `@apiNote` for usage guidance that matters to callers
+
+If a method returns `Result<T, E>`, document the meaning of both success and error cases, including what invariants hold in each branch.
+
+#### Examples
+
+Include examples in:
+
+- all class-level Javadocs;
+- all public APIs that are non-trivial;
+- any method whose behavior is subtle, stateful, capability-gated, performance-sensitive, or easy to misuse.
+
+Examples should demonstrate correct usage, not merely compile.
+
+#### Line comments
+
+Use line comments to explain why the code is written the way it is, not to restate what the syntax already says.
+
+Good line comments explain:
+
+- why an invariant matters;
+- why a bound exists;
+- why a data layout was chosen;
+- why a synchronization or ownership choice is safe;
+- why a failure mode is handled in a particular way;
+- why an optimization is correct and necessary.
+
+#### Literate style for complex algorithms
+
+For complex algorithms, parsers, protocol handlers, state transitions, concurrency logic, and performance-critical code, use line comments in a literate-programming style.
+
+That means the code should read as a narrative:
+
+1. state the goal of the step;
+2. explain the invariant being established or preserved;
+3. perform the step;
+4. explain why the next step is safe.
+
+The comment stream should help a careful reader follow the algorithm without reverse-engineering its intent from raw control flow.
+
+#### Documentation rules
+
+- Documentation must describe semantics, not merely surface syntax.
+- Documentation must stay consistent with code, tests, and contracts.
+- If a safety property matters, document it in both prose and executable form where possible.
+- If a method has important preconditions or postconditions, prefer expressing them in both Javadoc and JML.
+- If a comment becomes stale, fix or remove it immediately.
+- Public APIs without adequate Javadoc are incomplete.
+
+Reason: documentation preserves the mental model required for safe evolution. In a correctness-oriented codebase, Javadocs, contracts, examples, and literate comments are not decoration; they are part of the executable engineering record.
 
 ## Result and Exception Policy
 
