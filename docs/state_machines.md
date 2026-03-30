@@ -331,14 +331,14 @@ public final class SingletonTypestateOrder {
 For many Java systems, the best progression is:
 
 1. Start with an enum if the lifecycle is simple.
-  - Use `enum` when simplicity matters more than compile-time transition safety.
+    - Use `enum` when simplicity matters more than compile-time transition safety.
 2. Use typestate when illegal transitions must be caught by the compiler.
-  - Use typestate when the workflow itself is part of the API contract.
+    - Use typestate when the workflow itself is part of the API contract.
 3. Move to sealed types when state-specific behavior starts to grow or you need clearer domain modeling.
-  - Use sealed state types when you want a clear, explicit, domain-centered model.
+    - Use sealed state types when you want a clear, explicit, domain-centered model.
 4. Use singleton typestate or packed primitives when the machine sits on a hot path.
-  - Use packed primitives when absolute throughput and minimal allocation are the priority.
-  - Use singleton typestate when you want near-zero-allocation code with compiler-checked transitions.
+    - Use packed primitives when absolute throughput and minimal allocation are the priority.
+    - Use singleton typestate when you want near-zero-allocation code with compiler-checked transitions.
 
 ## Production concerns
 
