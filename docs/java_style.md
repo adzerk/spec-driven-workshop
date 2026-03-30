@@ -413,21 +413,27 @@ Rules:
 
 ## Review Checklist
 
-- Are the invariants stated?
-- Is the subsystem deterministic and ideally modeled as a clear state machine?
-- Are illegal states hard to represent?
+- Are the invariants stated clearly?
+- Is the subsystem deterministic where possible and ideally modeled as a clear state machine?
+- Are illegal states and illegal transitions hard to represent?
+- Is control flow simple, explicit, and bounded?
 - Are all expected failures returned as `Result`?
 - Are exceptions reserved for exceptional conditions?
+- Are preconditions, postconditions, and invariants asserted?
+- Are Javadocs present and complete for classes and methods, including exceptions, safety requirements, and semantic constraints?
+- Do line comments explain why the code is written this way, especially in subtle or performance-critical sections?
+- Is arithmetic checked where overflow, rounding, or off-by-one errors matter?
 - Are bounds explicit everywhere?
-- Are assertions present for inputs, outputs, and invariants?
-- Is arithmetic checked where overflow matters?
-- Is core logic isolated from I/O?
-- Is the "read" side decoupled from the "write" side?
-- Can the code be simulated, replayed, or fault-injected?
+- Is core logic isolated from direct I/O, time, randomness, and external effects?
+- Can the code be simulated, replayed, differentially tested, or fault-injected?
 - Are histories tested, not just individual functions?
-- Is concurrency explicit and bounded?
-- Are all warnings clean?
-- Would this design still be easy to evolve in a year?
+- Is concurrency explicit, bounded, and documented in terms of ownership and ordering?
+- If state is shared, are the synchronization discipline and invariants obvious?
+- Is the hot path allocation-free or close to it where performance matters?
+- Are unnecessary copies avoided, and is the data layout cache-friendly?
+- Is the "read" side decoupled from the "write" side?
+- Are all warnings and analyzer checks clean?
+- Would this design and its implementation still be easy to evolve in a year?
 
 ## Short Form
 
