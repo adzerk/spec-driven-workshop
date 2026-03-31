@@ -212,6 +212,7 @@ Do not ask agents to only "implement the feature." Ask them to:
 - produce the harness that will judge the implementation.
 
 And do not let an agent self-certify. The code it wrote must answer to an independent check: a model, a verifier, a test harness, a static analyzer, and/or a review from a fresh context.
+See also: [When AI Writes the World's Software, Who Verifies It?](https://leodemoura.github.io/blog/2026-2-28-when-ai-writes-the-worlds-software-who-verifies-it/)
 
 ## Lightweight formal methods in the DESIRED workflow
 
