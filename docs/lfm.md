@@ -1,14 +1,14 @@
 # Lightweight Formal Methods in Practice
 
-This guide explains how lightweight formal methods fit into this repo's spec-driven workflow. It complements [`docs/java_style.md`](java_style.md) and [`docs/state_machines.md`](state_machines.md) by focusing on workflow, artifacts, and evidence rather than code-level rules.
+This guide explains how lightweight formal methods fit into a spec-driven workflow. It complements [`docs/java_style.md`](java_style.md) and [`docs/state_machines.md`](state_machines.md) by focusing on workflow, artifacts, and evidence rather than code-level rules.
 
-Lightweight formal methods are not about proving an entire system correct. They are about making the critical parts of a system explicit enough that they can be checked mechanically and evolved safely. Many costly failures begin in requirements, assumptions, and design, not only in code. So the goal is not universal proof. The goal is to identify the critical properties, produce direct evidence that they hold, and keep that evidence alive as the system changes.
+Lightweight formal methods are not about proving an entire system correct. They are about making the critical parts of a system explicit enough that they can be checked mechanically and evolved safely. Many costly failures begin in requirements, assumptions, and design, well before code is produced. So the goal is not universal proof -- The goal is to identify the critical properties, produce direct evidence that they hold, and keep that evidence alive as the system changes.
 
-Recent industrial examples converge on the same pattern. Brooker emphasizes invariant-first reasoning. S3 shows that a live product team can use executable reference models and automated checks without aiming for full formal verification. Cedar shows verification-guided development around an executable model, proofs, differential random testing, and property-based testing. `redis-rust` shows the same idea in the age of agents: generated code must answer to objective, mechanical pass/fail checks, and the verification harness matters as much as the implementation.
+Recent industrial examples converge on the same pattern. Brooker emphasizes [invariant-first reasoning](https://brooker.co.za/blog/2023/07/28/ds-testing.html). AWS/S3 shows that a live product team can [use executable reference models](https://www.amazon.science/publications/using-lightweight-formal-methods-to-validate-a-key-value-storage-node-in-amazon-s3) and automated checks without aiming for full formal verification. Cedar shows [verification-guided development](https://www.amazon.science/publications/how-we-built-cedar-a-verification-guided-approach) around an executable model, proofs, differential random testing, and property-based testing. Datadog/`redis-rust` shows the [same idea in the age of agents](https://www.datadoghq.com/blog/ai/harness-first-agents/): generated code must answer to objective, mechanical pass/fail checks, and the verification harness matters as much as the implementation.
 
 In a spec-driven and agent-assisted workflow, this matters even more. Code is cheaper to generate. Trust is not.
 
-## Direct evidence, not just process conformance
+## Direct evidence is best
 
 A system is dependable only when there is good reason to trust it. Processes, tools, and standards matter, but they are indirect. The stronger question is: what evidence do we have that this system preserves its critical properties in the situations that matter?
 
@@ -25,7 +25,7 @@ That evidence can take many forms:
 
 Treat this evidence as a work product. For a nontrivial change, the outcome should be a small dependability case: the claims, assumptions, models, checks, and results that justify trust in the change.
 
-This is also why a direct approach rewards innovation. The team is judged by the quality of its evidence, not by blind adherence to one prescribed technique.
+This is also why [a direct approach](https://cacm.acm.org/research/a-direct-path-to-dependable-software/) rewards innovation. The team is judged by the value/outcome delivered and the quality of its evidence, not by blind adherence to one prescribed technique.
 
 ## Start from critical properties and invariants
 
@@ -37,6 +37,9 @@ Ask:
 - What must never happen?
 - What states exist?
 - What transitions are legal?
+- What are the critical or defining properties of this entity?
+- What [quality attributes](https://en.wikipedia.org/wiki/List_of_system_quality_attributes) are important and why? (limits, rates, security, reliability, etc.)
+- What are the [interaction protocols](https://www.infoq.com/presentations/history-protocols-distributed-systems/) between these entities?
 - What failures are acceptable, and which are intolerable?
 - What assumptions are we making about users, infrastructure, time, randomness, and the environment?
 - Which properties matter end to end, in the world, not only inside the code?
@@ -63,7 +66,7 @@ Once the critical core is identified, build a small model of it. The model shoul
 
 A good reference model usually:
 
-- replaces infrastructure with simple data structures;
+- replaces infrastructure with interfaces and simple data structures;
 - uses pure or near-pure functions;
 - makes state explicit;
 - is single-threaded and value-oriented;
@@ -71,16 +74,16 @@ A good reference model usually:
 - is small enough to read in one sitting;
 - is easier to trust than the production implementation.
 
-The model is not the product. It is the oracle that makes later checking possible.
+The model is not the product. It enables us to see how a design withstands reality. It is the oracle that makes later checking possible.
 
 Depending on the problem, the model might be:
 
-- a small executable program in the host language;
-- a model in a verification-oriented language;
+- a small executable program in the host language (Java, Rust, etc.);
+- a model in a verification-oriented language ([Alloy](https://practicalalloy.github.io/index.html), [TLA+](https://learntla.com/), Lean);
 - a state table or algebraic model for a narrow kernel;
 - a simplified protocol model for concurrency, recovery, or permissions.
 
-The notation matters less than the fact that the behavior is explicit and can be checked.
+The notation matters less than the fact that the behavior is explicit and can be checked.  You can use the agent to automate building models.
 
 ## Shape the implementation for reasoning
 
@@ -97,7 +100,7 @@ Prefer:
 
 Decoupling and simplicity are not aesthetic preferences. They lower the cost of assurance by localizing critical properties. If a property is spread across the whole codebase, the whole codebase becomes critical. If it is localized to one component or one interaction boundary, verification and review can focus there.
 
-This is why the repo emphasizes deterministic systems, state machines, explicit error handling, and strong contracts in [`docs/java_style.md`](java_style.md) and [`docs/state_machines.md`](state_machines.md). Those guides explain how to write the code. This guide explains why that shape matters and how to drive it from the spec.
+This is why there is emphasis on deterministic systems, state machines, explicit error handling, and strong contracts in [`docs/java_style.md`](java_style.md) and [`docs/state_machines.md`](state_machines.md). Those guides explain how to write the code. This guide explains why that shape matters and how to drive it from the spec.
 
 ## Connect the model to the implementation
 
@@ -115,7 +118,7 @@ The harness is the trust boundary.
 
 ## Use a verification pyramid
 
-No single technique is enough. Testing alone is not enough for high assurance. Proof alone is not enough either, because proofs depend on scope, assumptions, and the sufficiency of the stated property. The practical answer is a layered stack of evidence.
+No single technique is enough. Testing alone is not enough for high assurance. Proofs alone are not enough either because they depend on scope, assumptions, and the sufficiency of the stated property. The practical answer is a layered stack of evidence.
 
 A typical verification pyramid looks like this:
 
@@ -131,11 +134,11 @@ A typical verification pyramid looks like this:
 
 Use the lightest mechanism that can falsify the current hypothesis, then layer stronger mechanisms where the risk justifies them.
 
-In this repo, that usually means JUnit for examples and regressions, jqwik for generated histories, Fray for concurrency schedules, and OpenJML for contracts and extended static checking, as described in [`docs/java_style.md`](java_style.md).
+For a Java-based project, that usually means JUnit for examples and regressions, jqwik for generated histories, Fray for concurrency schedules, and OpenJML for contracts and extended static checking, as described in [`docs/java_style.md`](java_style.md).
 
 ## Testing remains essential, but it is not enough
 
-Testing is crucial. It catches regressions, supports iteration, and gives fast feedback. But testing alone rarely gives enough confidence for the most critical properties at a reasonable cost.
+Testing is crucial. It catches regressions, supports iteration, and gives fast feedback. But testing alone rarely gives enough confidence for the most critical properties at a reasonable cost.  Tests cover individual cases, [proofs represent "for all cases"](https://cacm.acm.org/blogcacm/a-fundamental-duality-of-software-engineering/).
 
 As assurance demands rise:
 
@@ -149,7 +152,7 @@ This is why lightweight formal methods do not replace testing. They make testing
 - invariants to check after every step;
 - reference models to compare against;
 - histories to generate;
-- faults and schedules to inject;
+- faults and schedules/interleavings to inject;
 - contracts to monitor at important boundaries.
 
 A single well-chosen invariant can stand in for an infinite family of test cases.
@@ -179,7 +182,7 @@ For engineers, the practical workflow is:
 4. Design the production system so those properties are local, explicit, and checkable.
 5. Implement the deterministic core and push nondeterminism to the edges.
 6. Compare model and implementation with differential tests.
-7. Add property-based tests, fault injection, and schedule exploration where bugs are likely to hide.
+7. Add property-based tests, fault injection, and schedule/interleaving exploration where bugs are likely to hide.
 8. Turn every counterexample into a permanent regression test.
 9. Keep the entire evidence stack in CI.
 10. Update the spec and the evidence as the system evolves.
@@ -195,7 +198,7 @@ Use agents to:
 - restate requirements as critical properties and invariants;
 - surface ambiguities and missing assumptions;
 - generate small reference models or skeleton specs;
-- draft contracts, assertions, and test oracles;
+- draft contracts, assertions, specs, and test oracles;
 - generate differential, property-based, and concurrency tests;
 - explain failing seeds, shrunk counterexamples, or proof obligations;
 - summarize evidence gaps after each implementation pass.
@@ -212,7 +215,7 @@ And do not let an agent self-certify. The code it wrote must answer to an indepe
 
 ## Lightweight formal methods in the DESIRED workflow
 
-This repository's spec-driven workflow already provides the right structure for lightweight formal methods. DESIRED makes the evidence-building process explicit.
+The spec-driven workflow already provides the right structure for lightweight formal methods. DESIRED makes the evidence-building process explicit.
 
 ### Draw / Invariants
 
@@ -225,26 +228,29 @@ During this phase, use the agent to produce 10s/100s of prototypes to see the id
 
 ### Spec
 
-Turn the refined understanding (eg: your best "plan.md" file) into small, focused spec artifacts -- the agent can automate all of this. The spec should say what matters, what must be preserved, what assumptions hold, and how success will be judged. In this repo, the OpenSpec artifacts are a natural place to carry the dependability case forward: the proposal captures why, the design captures structure and reasoning, the spec records critical properties and assumptions, and the tasks drive construction and evidence-producing work.
-The spec.md artifact can be further enhanced by embedding an Alloy model of the system.  Have the agents review the spec artifacts for completeness and correctness.
+Turn the refined understanding (eg: your best "plan.md" file) into small, focused spec artifacts -- the agent can automate all of this with `/opsx-propose`. The spec should say what matters, what must be preserved, what assumptions hold, and how success will be judged. The OpenSpec artifacts are a natural place to carry the dependability case forward: the proposal captures why, the design captures structure and reasoning, the spec records critical properties and assumptions, and the tasks drive construction and evidence-producing work.
+The spec.md artifact can be further enhanced by embedding an Alloy model of the system (automated with `/spec-model`).  Have the agents review the spec artifacts for completeness, correctness, and consistency.
 
 ### Implement
 
-Have the agent implement against the spec, not against an underspecified feature request. Require documented preconditions, postconditions, and invariants. Keep the core deterministic. Push time, I/O, randomness, and scheduling to the edges. Generate the unit tests, property-tests, and contracts alongside the code. Code must always be accompanied with its evidence.
+Have the agent implement against the spec using `/opsx-apply`, not against an underspecified feature request. Require documented preconditions, postconditions, and invariants. Keep the core deterministic. Push time, I/O, randomness, and scheduling to the edges. Generate the unit tests, property-tests, and contracts alongside the code. Code must always be accompanied with its evidence.
+Have the agent tag tests with the `Scenario` or invariant being exercised.
 
 ### Review with agents
 
 Use fresh-context review to attack the plan, the spec, the code, and the evidence. Ask what assumptions remain unjustified, which invariants are still only implicit, and where the implementation may be reinforcing itself rather than being independently checked.
+Ensure the code quality is high, the solution quality is high, and everything is correct.
 
 ### Examine
 
 Read the code, contracts, tests, model, and counterexamples together. Run the full check pipeline. Confirm that the evidence actually supports the claims you care about. If the system taught you something new, feed it back into the spec.
+The `/spec-evidence` command and `scripts/evidence.sh` script can help enhance the spec to make this process easier/automatic.
 
 ### Done
 
 Archive the change with its spec artifacts, model, contracts, tests, and review record. The result is not just code that works today, but living documentation of the system and its critical properties.  In combination, these explain why everything should keep working as the system evolves.
 
-## How this guide complements the other repo guides
+## How this guide complements the other docs/guides
 
 This guide explains the workflow and the evidence model.
 
