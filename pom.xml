@@ -17,6 +17,7 @@
 
     <maven.surefire.plugin.version>3.5.5</maven.surefire.plugin.version>
     <junit.jupiter.version>5.14.3</junit.jupiter.version>
+    <junit.platform.version>1.14.3</junit.platform.version>
     <jqwik.version>1.9.3</jqwik.version>
     <fray.version>0.7.3</fray.version>
 
@@ -54,6 +55,12 @@
       <groupId>net.jqwik</groupId>
       <artifactId>jqwik</artifactId>
       <version>${jqwik.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.platform</groupId>
+      <artifactId>junit-platform-launcher</artifactId>
+      <version>${junit.platform.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>

@@ -66,7 +66,7 @@ format:
 
 .PHONY : check
 check: format
-	@JAVA_HOME=$(JHOME) $(MVN) -P errorprone verify
+	@JAVA_HOME=$(JHOME) $(MVN) -Dspec.trace.coverage=true -P errorprone verify
 
 .PHONY : test
 test:
