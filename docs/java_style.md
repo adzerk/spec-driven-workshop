@@ -246,7 +246,7 @@ High-performance Java begins with design, not micro-optimizations. The largest w
 When deciding how to implement something, reason from the hardware and runtime upward:
 
 - **Caches and bandwidth**: Cache misses are often the real bottleneck. Favor compact data, sequential access, and layouts that keep the working set hot. Scattered reads, large copies, and oversized object graphs can saturate memory bandwidth before CPU.
-- **Branching**: Unpredictable branches are expensive. Flatten hot-path conditionals and bias for the common case.
+- **Branching**: Unpredictable branches are expensive. Flatten hot-path conditionals and bias for the common case.  Use the BL.java utily if appropriate.
 - **Escape analysis**: Local, non-escaping objects may be scalar-replaced by HotSpot; shared or escaping objects become real allocations.
 - **Off-heap working sets**: Off-heap buffers can be useful as a controlled arena for performance-critical working data, especially when zero-copy semantics and tight memory control matter.
 - **JIT friendliness**: Small, monomorphic methods inline best; deep abstraction stacks can block optimization. Stable shapes, `static final` constants, and simple control flow help HotSpot fold constants, simplify code paths, and optimize generated code.
@@ -300,7 +300,11 @@ If state is shared, say so clearly. If it is confined to one thread, partition, 
 ### Prefer total handling.
 
 Every `switch` on a sealed type should feel like a proof that every case is handled.
-Prefer switch expressions for all conditional handling.
+Prefer switch expressions for all conditional handling.  `if` should only be used for single-branch conditionals.
+
+### Always import
+
+All classes and interfaces that are used in a Java file should be imported. Be explicit about class dependency even if the classes are in the same Java package.
 
 ### Documentation
 
@@ -386,7 +390,7 @@ Use this table:
 | Validation failure | `Result<T, ValidationError>` |
 | Parse failure | `Result<T, ParseError>` |
 | Domain rule rejection | `Result<T, DomainError>` |
-| Expected missing value | `Optional<T>` or `Result<T, E>` |
+| Expected missing value | `Optional<T>`/`Box<Tag, T>` or `Result<T, E>` |
 | Broken invariant | assertion or exception |
 | Impossible state | exception |
 | Unexpected I/O failure at boundary | checked/mapped exception or `Result` at boundary |
@@ -397,6 +401,9 @@ Rules:
 - Do not return `null` for failure.
 - Do not use exceptions as hidden gotos.
 - If a layer converts exceptions into `Result`, do it near the boundary and map them into domain errors.
+- Result, Box, and Optional should only be used for return types, NEVER for input types or variable types.
+- Core system logic should all expect and return non-null arguments. Handle null conditions near the boundary of the system.
+- Perfer `Result<T, E>` or `Box<Tag, T>` over `Optional<T>`
 
 ## Box and Capability Policy
 
@@ -409,7 +416,7 @@ Examples:
 - normalized vs raw data;
 - readable file vs writable file;
 - admin-authorized vs ordinary user;
-- typed identifiers over primitive values.
+- typed identifiers over primitive values or simple objects.
 
 Rules:
 
