@@ -13,7 +13,7 @@
 
 ## Declaring traced tests
 
-Annotate each traced method explicitly with `@SpecTrace`.
+Annotate each traced method explicitly with `@SpecTrace` via `com.kevel.spectrace.SpecTrace`.
 
 ```java
 @Test
