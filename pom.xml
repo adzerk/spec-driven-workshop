@@ -81,6 +81,7 @@
               <fork>true</fork>
               <executable>${project.basedir}/tooling/openjml/openjml</executable>
               <compilerArgs>
+                <arg>--enable-preview</arg>
                 <arg>--esc</arg>
                 <arg>--progress</arg>
               </compilerArgs>
@@ -106,6 +107,7 @@
               <fork>true</fork>
               <executable>${project.basedir}/tooling/jdk-21.0.7+6/bin/javac</executable>
               <compilerArgs>
+                <arg>--enable-preview</arg>
                 <arg>-XDcompilePolicy=simple</arg>
                 <arg>--should-stop=ifError=FLOW</arg>
                 <arg>-Xplugin:ErrorProne</arg>
