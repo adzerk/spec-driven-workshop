@@ -18,7 +18,7 @@ Style is not decoration. Style is design pressure applied early enough to preven
 |---|---|
 | Design | State invariants, legal transitions, failures, and bounds before coding |
 | System shape | Prefer deterministic systems and explicit state machines |
-| Control flow | Keep control flow simple; bound loops; target 70 lines per method |
+| Control flow | Keep control flow simple; bound loops; keep a method within 70 lines |
 | Bounds | Put a bound on queues, retries, buffers, input sizes, and in-flight work |
 | Error handling | Use `Result` for expected failures; exceptions only for exceptional failures |
 | Types | Prefer sealed types, records, and `Box<Tag, T>` over flags and raw primitives |
@@ -176,7 +176,7 @@ Every important subsystem should admit a small reference model and a production 
 Suggested stack in this repo:
 
 - JUnit for examples and regression tests
-- jqwik for generated histories and metamorphic tests
+- jqwik for [generated histories](https://jqwik.net/docs/current/user-guide.html#stateful-testing) and [metamorphic tests](https://johanneslink.net/how-to-specify-it/#43-metamorphic-properties)
 - Fray for concurrency testing / concurrency schedules
 - OpenJML for method-level contracts and system invariants
 - JBMC for bounded edge cases in critical kernels
@@ -245,8 +245,8 @@ High-performance Java begins with design, not micro-optimizations. The largest w
 
 When deciding how to implement something, reason from the hardware and runtime upward:
 
-- **Caches and bandwidth**: Cache misses are often the real bottleneck. Favor compact data, sequential access, and layouts that keep the working set hot. Scattered reads, large copies, and oversized object graphs can saturate memory bandwidth before CPU.
-- **Branching**: Unpredictable branches are expensive. Flatten hot-path conditionals and bias for the common case.  Use the BL.java utily if appropriate.
+- **Caches and bandwidth**: Cache misses are often a real bottleneck. Favor compact data, sequential access, and layouts that keep the working set hot. Scattered reads, large copies, and oversized object graphs can saturate memory bandwidth before CPU.
+- **Branching**: Unpredictable branches are expensive. Flatten hot-path conditionals and bias for the common case.  Use the `BL.java` utility if appropriate.
 - **Escape analysis**: Local, non-escaping objects may be scalar-replaced by HotSpot; shared or escaping objects become real allocations.
 - **Off-heap working sets**: Off-heap buffers can be useful as a controlled arena for performance-critical working data, especially when zero-copy semantics and tight memory control matter.
 - **JIT friendliness**: Small, monomorphic methods inline best; deep abstraction stacks can block optimization. Stable shapes, `static final` constants, and simple control flow help HotSpot fold constants, simplify code paths, and optimize generated code.
@@ -277,7 +277,6 @@ Suggested practice in this repo:
 Use sealed interfaces and records for:
 
 - command hierarchies;
-- state machines;
 - error types;
 - protocol messages;
 - parsed forms.
@@ -359,7 +358,7 @@ Good line comments explain:
 
 #### Literate style for complex algorithms
 
-For complex algorithms, parsers, protocol handlers, state transitions, concurrency logic, and performance-critical code, use line comments in a literate-programming style.
+For complex algorithms, parsers, protocol handlers, state transitions, concurrency logic, and performance-critical code, use line comments in a literate-programming style.  Walk through the logic in prose.
 
 That means the code should read as a narrative:
 
