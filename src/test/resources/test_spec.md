@@ -4,7 +4,7 @@ This markdown file is a passing integration fixture for `scripts/evidence.sh`.
 It exercises supported evidence languages, unmatched lines with no assertion comments,
 multi-line Java inputs, unsupported-language skipping, and file-wide Alloy collection.
 
-#### Scenario: Java value and unmatched lines
+#### Scenario: Java value and unmatched lines [EVIDENCE-UNMATCHED]
 - **WHEN** Java evidence blocks contain a mix of asserted and unmatched lines
 - **THEN** unmatched lines execute without requiring an assertion comment
 
