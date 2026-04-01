@@ -5,22 +5,38 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+/**
+ * Unit tests for {@link SpecCatalogBuilder} parsing and duplicate handling.
+ *
+ * <p>These tests exercise the parser directly so failures isolate catalog semantics from the JUnit
+ * runtime integration.
+ *
+ * <p>Example:
+ *
+ * <pre>{@code
+ * SpecCatalog catalog = SpecCatalogBuilder.build(projectRoot);
+ * assertNotNull(catalog);
+ * }</pre>
+ */
 class SpecCatalogBuilderTest {
 
     @TempDir
     Path tempDir;
 
+    /**
+     * Verifies that only canonical {@code spec.md} files contribute identifiers and parser filters
+     * out fenced or inline-code examples.
+     *
+     * @throws Exception if fixture setup fails unexpectedly
+     */
     @Test
     void discoversBracketedIdentifiersFromCanonicalSpecFilesOnly() throws Exception {
-        Path projectRoot = copyResourceDirectory("spec-traceability/catalog/valid", tempDir.resolve("project"));
+        Path projectRoot = SpecTraceTestResources.copyResourceDirectory(
+                SpecCatalogBuilderTest.class, "spec-traceability/catalog/valid", tempDir.resolve("project"));
 
         SpecCatalog catalog = SpecCatalogBuilder.build(projectRoot);
 
@@ -44,9 +60,15 @@ class SpecCatalogBuilderTest {
         assertEquals(9, catalog.definition("TRACE-REVIEW-ONLY").lineNumber());
     }
 
+    /**
+     * Verifies that within-file duplicates keep first provenance instead of inflating obligations.
+     *
+     * @throws Exception if fixture setup fails unexpectedly
+     */
     @Test
     void withinFileDuplicatesKeepTheFirstOccurrence() throws Exception {
-        Path projectRoot = copyResourceDirectory("spec-traceability/catalog/within-file", tempDir.resolve("project"));
+        Path projectRoot = SpecTraceTestResources.copyResourceDirectory(
+                SpecCatalogBuilderTest.class, "spec-traceability/catalog/within-file", tempDir.resolve("project"));
 
         SpecCatalog catalog = SpecCatalogBuilder.build(projectRoot);
 
@@ -54,18 +76,27 @@ class SpecCatalogBuilderTest {
         assertEquals(1, catalog.definition("TRACE-DUPLICATE").lineNumber());
     }
 
+    /**
+     * Verifies that cross-file duplicates return a provenance-rich catalog error.
+     *
+     * @throws Exception if fixture setup fails unexpectedly
+     */
     @Test
     void crossFileDuplicatesFailWithProvenance() throws Exception {
-        Path projectRoot = copyResourceDirectory("spec-traceability/catalog/duplicate", tempDir.resolve("project"));
+        Path projectRoot = SpecTraceTestResources.copyResourceDirectory(
+                SpecCatalogBuilderTest.class, "spec-traceability/catalog/duplicate", tempDir.resolve("project"));
 
         SpecCatalogException exception =
                 assertThrows(SpecCatalogException.class, () -> SpecCatalogBuilder.build(projectRoot));
-
         assertTrue(exception.getMessage().contains("TRACE-DUPLICATE"));
         assertTrue(exception.getMessage().contains("openspec/specs/alpha/spec.md:1"));
         assertTrue(exception.getMessage().contains("openspec/specs/beta/spec.md:1"));
     }
 
+    /**
+     * Verifies that the absence of canonical spec files yields an empty catalog rather than a
+     * failure.
+     */
     @Test
     void emptyCatalogIsAllowedWhenNoCanonicalSpecsExist() {
         SpecCatalog catalog = SpecCatalogBuilder.build(tempDir);
@@ -73,30 +104,11 @@ class SpecCatalogBuilderTest {
         assertTrue(catalog.isEmpty());
     }
 
-    private static Path copyResourceDirectory(String resourceName, Path destination)
-            throws IOException, URISyntaxException {
-        Path source = Path.of(SpecCatalogBuilderTest.class
-                .getClassLoader()
-                .getResource(resourceName)
-                .toURI());
-        try (var paths = Files.walk(source)) {
-            paths.sorted(Comparator.naturalOrder()).forEach(path -> copyPath(source, destination, path));
-        }
-        return destination;
-    }
-
-    private static void copyPath(Path sourceRoot, Path destinationRoot, Path sourcePath) {
-        Path destinationPath =
-                destinationRoot.resolve(sourceRoot.relativize(sourcePath).toString());
-        try {
-            if (Files.isDirectory(sourcePath)) {
-                Files.createDirectories(destinationPath);
-            } else {
-                Files.createDirectories(destinationPath.getParent());
-                Files.copy(sourcePath, destinationPath);
-            }
-        } catch (IOException exception) {
-            throw new IllegalStateException("Unable to copy test fixture " + sourcePath, exception);
-        }
+    /**
+     * Verifies that null project roots are rejected at the boundary.
+     */
+    @Test
+    void nullProjectRootFailsFast() {
+        assertThrows(NullPointerException.class, () -> SpecCatalogBuilder.build(null));
     }
 }

@@ -5,8 +5,34 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Shared runtime for spec-trace validation and coverage enforcement.
+ *
+ * <p>Ownership model: this class is the single shared owner of catalog caching and exercised-id
+ * tracking for a launcher session. Synchronization discipline: {@link #LOCK} guards {@link
+ * #catalogRoot}, {@link #catalog}, and {@link #exercisedIdentifiers}. No caller may read or mutate
+ * those fields outside the synchronized region.
+ *
+ * <p>Named invariants:
+ * <ul>
+ *   <li>{@code catalog == null} iff the catalog has not yet been loaded for the current root.
+ *   <li>When {@code catalog != null}, {@code catalogRoot} is non-null and names the root used to
+ *       build that catalog.
+ *   <li>{@code exercisedIdentifiers} contains only identifiers that have already been validated
+ *       against the current catalog.
+ * </ul>
+ *
+ * <p>Example:
+ *
+ * <pre>{@code
+ * SpecTraceRuntime.resetExecution();
+ * SpecTraceRuntime.validateAndRecord(testMethod);
+ * SpecTraceRuntime.assertCoverageSatisfied();
+ * }</pre>
+ */
 final class SpecTraceRuntime {
 
     static final String COVERAGE_PROPERTY = "spec.trace.coverage";
@@ -20,13 +46,32 @@ final class SpecTraceRuntime {
 
     private SpecTraceRuntime() {}
 
+    /**
+     * Clears per-run execution state.
+     *
+     * <p>Postconditions: the exercised identifier set is empty. The catalog cache is intentionally
+     * retained so repeated validations in the same launcher session do not rescan the filesystem.
+     */
     static void resetExecution() {
         synchronized (LOCK) {
             exercisedIdentifiers.clear();
         }
     }
 
+    /**
+     * Validates a traced method and records its exercised identifiers.
+     *
+     * <p>Preconditions: {@code method} is non-null. Postconditions: if the method carries {@link
+     * SpecTrace}, every identifier is syntactically valid, present in the current catalog, and then
+     * recorded in the exercised-id set.
+     *
+     * @param method reflected test method; must be non-null
+     * @throws NullPointerException if {@code method} is null
+     * @throws AssertionError if identifiers are malformed, empty, or absent from the catalog
+     * @throws SpecCatalogException if the canonical catalog has structural conflicts
+     */
     static void validateAndRecord(Method method) {
+        Objects.requireNonNull(method, "method");
         SpecTrace annotation = method.getAnnotation(SpecTrace.class);
         if (annotation == null) {
             return;
@@ -61,6 +106,12 @@ final class SpecTraceRuntime {
         }
     }
 
+    /**
+     * Fails when coverage enforcement is enabled and some canonical identifiers were not exercised.
+     *
+     * @throws AssertionError if coverage is enabled and uncovered identifiers remain
+     * @throws SpecCatalogException if the canonical catalog has structural conflicts
+     */
     static void assertCoverageSatisfied() {
         if (!coverageEnabled()) {
             return;
@@ -89,6 +140,15 @@ final class SpecTraceRuntime {
         }
     }
 
+    /**
+     * Resolves the cached catalog for the current project root.
+     *
+     * <p>Postconditions: the returned catalog matches the normalized root from {@link
+     * #projectRoot()}. Cache misses rebuild the catalog exactly once per distinct root.
+     *
+     * @return catalog for the current project root; never null
+     * @throws SpecCatalogException if the canonical catalog has structural conflicts
+     */
     static SpecCatalog catalog() {
         synchronized (LOCK) {
             Path root = projectRoot();
@@ -100,6 +160,11 @@ final class SpecTraceRuntime {
         }
     }
 
+    /**
+     * Resolves the normalized project root, optionally using a test override property.
+     *
+     * @return normalized absolute project root; never null
+     */
     static Path projectRoot() {
         String override = System.getProperty(ROOT_PROPERTY);
         if (override != null && !override.isBlank()) {
@@ -108,6 +173,11 @@ final class SpecTraceRuntime {
         return Path.of("").toAbsolutePath().normalize();
     }
 
+    /**
+     * Returns whether end-of-run coverage enforcement is enabled.
+     *
+     * @return {@code true} when {@value #COVERAGE_PROPERTY} is exactly {@code "true"}
+     */
     private static boolean coverageEnabled() {
         return "true".equals(System.getProperty(COVERAGE_PROPERTY));
     }
