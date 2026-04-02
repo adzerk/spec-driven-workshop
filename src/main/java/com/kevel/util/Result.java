@@ -8,66 +8,74 @@ import java.util.function.Supplier;
 
 /**
  * A Result type that represents either success (Ok) or failure (Err).
- * Results are Values returned from functions,
- * enabling us to handle errors as Values/data and avoid exception throwing.
- *
+ * Results are Values returned from functions, enabling us to handle errors as Values/data and avoid exception throwing.
  * This Result implementation bridges between Results and Exceptions.
  *
- * From Real World OCaml, 2e
- * Chapter 7: Error Handling
+ * <p>From Real World OCaml, 2e Chapter 7: Error Handling
  *
- * > "Choosing an Error-Handling Strategy"
- * > https://dev.realworldocaml.org/error-handling.html#choosing-an-error-handling-strategy
+ * <blockquote>
+ * "Choosing an Error-Handling Strategy"
+ * https://dev.realworldocaml.org/error-handling.html#choosing-an-error-handling-strategy
+ * </blockquote>
  *
- * > If you’re writing a rough-and-ready program where getting it done quickly
- * > is key and failure is not that expensive, then using exceptions extensively
- * > may be the way to go. If, on the other hand, you’re writing production
- * > software whose failure is costly, then you should probably lean in the
- * > direction of using error-aware return types.
+ * <blockquote>
+ * If you’re writing a rough-and-ready program where getting it done quickly is key and failure is
+ * not that expensive, then using exceptions extensively may be the way to go. If, on the other
+ * hand, you’re writing production software whose failure is costly, then you should probably lean
+ * in the direction of using error-aware return types.
+ * </blockquote>
  *
- * > To be clear, it doesn’t make sense to avoid exceptions entirely.
- * > The maxim of “use exceptions for exceptional conditions” applies.
- * > If an error occurs sufficiently rarely, then throwing an exception
- * > is often the right behavior.
+ * <blockquote>
+ * To be clear, it doesn’t make sense to avoid exceptions entirely. The maxim of “use exceptions
+ * for exceptional conditions” applies. If an error occurs sufficiently rarely, then throwing an
+ * exception is often the right behavior.
+ * </blockquote>
  *
- * > Also, for errors that are omnipresent, error-aware return types may be overkill.
- * > A good example is out-of-memory errors, which can occur anywhere, and so
- * > you’d need to use error-aware return types everywhere to capture those.
- * > Having every operation marked as one that might fail is no more explicit
- * > than having none of them marked.
+ * <blockquote>
+ * Also, for errors that are omnipresent, error-aware return types may be overkill. A good example
+ * is out-of-memory errors, which can occur anywhere, and so you’d need to use error-aware return
+ * types everywhere to capture those. Having every operation marked as one that might fail is no
+ * more explicit than having none of them marked.
+ * </blockquote>
  *
- * > In short, for errors that are a foreseeable and ordinary part of the
- * > execution of your production code and that are not omnipresent,
- * > error-aware return types are typically the right solution.
+ * <blockquote>
+ * In short, for errors that are a foreseeable and ordinary part of the execution of your
+ * production code and that are not omnipresent, error-aware return types are typically the right
+ * solution.
+ * </blockquote>
  *
- * ### How to use Results
+ * <p>### How to use Results
  *
- * 1. Define the Error types
- * This can be done with a simple `enum` for basic error signals
- * ```
+ * <p>1. Define the Error types This can be done with a simple `enum` for basic error signals
+ *
+ * <pre>{@code
  * enum ValidationError {
  *   INVALID_USERNAME,
  *   MISSING_PASSWORD
  * }
- * ```
+ * }</pre>
  *
- * Or you can use sealed interfaces to create Errors that carry data / Use a sum-type
- * ```
+ * <p>Or you can use sealed interfaces to create Errors that carry data / Use a sum-type
+ *
+ * <pre>{@code
  * sealed interface ParsingError {
  *   record MissingToken(String input) implements ParsingError {}
- *   record UnrecognizedSymbol(String input, String symbol, Map context) {}
+ *   record UnrecognizedSymbol(String input, String symbol, Map context) implements ParsingError {}
  * }
+ * }</pre>
  *
- * 2. Return Results from methods instead of throwing exceptions
+ * <p>2. Return Results from methods instead of throwing exceptions
  *
- * 3. Handle Results using `switch` or the Result methods (`map`, `flatMap`, `fold`)
- * ```
+ * <p>3. Handle Results using `switch` or the Result methods (`map`, `flatMap`, `fold`)
+ *
+ * <pre>{@code
  * var x = switch(someResult) {
  *   case Ok(var value) -> ...;
  *   case Err(var error) -> ...;
  * };
- * ```
- * And you can further switch/match on the Error types you created.
+ * }</pre>
+ *
+ * <p>And you can further switch/match on the Error types you created.
  *
  * @param <T> The type of the success value
  * @param <E> The type of the error value

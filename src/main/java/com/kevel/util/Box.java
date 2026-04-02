@@ -35,37 +35,37 @@ import java.util.function.Supplier;
  * Box<ValidatedUserId, String> validated = raw.into();
  * }</pre>
  *
- * Boxes are a simple typed-tagged Reference Type, where the tags are removed
+ * <p>Boxes are a simple typed-tagged Reference Type, where the tags are removed
  * at compile time; zero-sized.
- * Boxes are immutable; This is a value-based class.  The contents of a Box cannot be reset after creation.
+ * <br>Boxes are immutable; This is a value-based class.  The contents of a Box cannot be reset after creation.
  *
- * -- Tagging generic data --
- * Programming with generic data containers (Maps, Lists, etc.) is quite useful
+ * <p>-- Tagging generic data --
+ * <p>Programming with generic data containers (Maps, Lists, etc.) is quite useful
  * and avoids the overhead of constant "domain object" marshalling.
  * Nonetheless, it can be useful to say, "This map represents an X" and
  * Boxes provide that.
  * The type tag can also be ignored since a Box is also
  * a Supplier (ie: a Box without the type tag).
  *
- * -- Newtype / Phantom types --
- * Boxes separate a concrete data representation (eg: a String, a list, etc.)
+ * <p>-- Newtype / Phantom types --
+ * <p>Boxes separate a concrete data representation (eg: a String, a list, etc.)
  * from a logical type.
- * "The newtype idiom gives compile time guarantees that the right logical
+ * <br>"The newtype idiom gives compile time guarantees that the right logical
  * type of value is supplied to a program." - from: https://doc.rust-lang.org/rust-by-example/generics/new_types.html
  * For example, a person's age should be in "Years", represented by an int,
  * but you only care about that at compile time (the program fundamentally uses int).
- * See also: https://doc.rust-lang.org/rust-by-example/generics/phantom.html
+ * <br>See also: https://doc.rust-lang.org/rust-by-example/generics/phantom.html
  *
- * -- Lightweight capabilities --
- * As an extension of 'newtype', Boxes enable tracking and enforcing capabilities.
+ * <p>-- Lightweight capabilities --
+ * <p>As an extension of 'newtype', Boxes enable tracking and enforcing capabilities.
  * For example, you could tag a file a Readable and enforce read access.
  * Another example, you could tag a User record as an "Admin", such that it can
  * only perform admin operations (enforced at compile-time).
  * Optionally, Witness Objects enable confirmation at runtime that the capability was not forged.
  * Make sure witness objects have private visibility, scoped to where you need trust.
  *
- * -- Option type --
- * Boxes can be used as a simple Option type, removing null references from your program.
+ * <p>-- Option type --
+ * <p>Boxes can be used as a simple Option type, removing null references from your program.
  *
  * @param <Tag> compile-time logical tag or capability marker
  * @param <T> wrapped runtime value type
@@ -91,7 +91,7 @@ public final class Box<Tag, T> implements Supplier<T> {
      * is the default witness defined by this class.
      *
      * <p>Safety requirements: callers must not use this method to represent absence; use
-     * {@link #EMTPY} for that case.
+     * {@link #empty()} for that case.
      *
      * @param value wrapped value; must be non-null
      * @param <Tag> compile-time tag for the returned box
@@ -99,7 +99,7 @@ public final class Box<Tag, T> implements Supplier<T> {
      * @return a new non-empty box containing {@code value}
      * @throws NullPointerException if {@code value} is null
      */
-    @CheckReturnValue
+    @CheckReturnValue // must-use
     public static <Tag, T> Box<Tag, T> of(T value) {
         Objects.requireNonNull(value, "Box value cannot be null. Use Box.empty() if you want an empty box");
         return new Box<>(value, DEFAULT_WITNESS);
@@ -123,7 +123,7 @@ public final class Box<Tag, T> implements Supplier<T> {
      * @return a new non-empty box containing {@code value} and {@code witness}
      * @throws NullPointerException if {@code value} or {@code witness} is null
      */
-    @CheckReturnValue
+    @CheckReturnValue // must-use
     public static <Tag, T> Box<Tag, T> of(T value, Object witness) {
         Objects.requireNonNull(value, "Box value cannot be null. Use Box.empty() if you want an empty box");
         Objects.requireNonNull(witness, "Box witness cannot be null");
@@ -234,7 +234,7 @@ public final class Box<Tag, T> implements Supplier<T> {
      * @param <NewTag> destination compile-time tag
      * @return a new box with the same value and no transferred witness authority
      */
-    @CheckReturnValue
+    @CheckReturnValue // must-use
     public <NewTag> Box<NewTag, T> into() {
         return new Box<>(value, DEFAULT_WITNESS);
     }
@@ -255,7 +255,7 @@ public final class Box<Tag, T> implements Supplier<T> {
      * @return a new box with the same value and the provided witness
      * @throws NullPointerException if {@code witness} is null
      */
-    @CheckReturnValue
+    @CheckReturnValue // must-use
     public <NewTag> Box<NewTag, T> into(Object witness) {
         Objects.requireNonNull(witness, "Box witness cannot be null");
         return new Box<>(value, witness);
@@ -276,7 +276,7 @@ public final class Box<Tag, T> implements Supplier<T> {
      * @return a new box with the same value and preserved witness
      * @throws IllegalStateException if {@code witness} does not match the stored witness by identity
      */
-    @CheckReturnValue
+    @CheckReturnValue // must-use
     public <NewTag> Box<NewTag, T> intoOnlyWith(Object witness) {
         if (hasWitness(witness)) {
             return new Box<>(value, witness);
@@ -346,6 +346,11 @@ public final class Box<Tag, T> implements Supplier<T> {
         return "Box[" + value + "]";
     }
 
+    /**
+     * Returns an empty box.
+     *
+     * @return a box whose inner value is null.
+     */
     @SuppressWarnings("unchecked")
     public static <X, R> Box<X, R> empty() {
         return (Box<X, R>) EMPTY;
