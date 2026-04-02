@@ -43,6 +43,14 @@ class BoxTest {
     }
 
     @Test
+    void emptyProvidesATypedEmptyBox() {
+        Box<Years, String> empty = Box.empty();
+
+        assertNull(empty.get());
+        assertEquals("fallback", empty.or("fallback"));
+    }
+
+    @Test
     void ofWithWitnessStoresWitnessByIdentity() {
         Object witness = new Object();
         Box<Admin, String> token = Box.of("allowed", witness);
@@ -61,8 +69,7 @@ class BoxTest {
 
     @Test
     void emptyActsLikeAnOptionWithoutAValue() {
-        @SuppressWarnings("unchecked")
-        Box<Years, String> empty = (Box<Years, String>) Box.EMPTY;
+        Box<Years, String> empty = Box.empty();
 
         assertNull(empty.get());
         assertEquals("fallback", empty.or("fallback"));
@@ -100,6 +107,15 @@ class BoxTest {
         assertTrue(converted.hasWitness(replacementWitness));
         assertFalse(converted.hasWitness(originalWitness));
         assertTrue(original.hasWitness(originalWitness));
+    }
+
+    @Test
+    void intoWithWitnessRejectsNullWitness() {
+        Box<Admin, String> original = Box.of("alice", new Object());
+
+        NullPointerException exception = assertThrows(NullPointerException.class, () -> original.into(null));
+
+        assertTrue(exception.getMessage().contains("Box witness cannot be null"));
     }
 
     @Test
@@ -149,7 +165,7 @@ class BoxTest {
     @Test
     void toStringShowsUnderlyingValue() {
         assertEquals("Box[17]", Box.<Years, Integer>of(17).toString());
-        assertEquals("Box[null]", Box.EMPTY.toString());
+        assertEquals("Box[null]", Box.empty().toString());
     }
 
     @Test
@@ -163,12 +179,30 @@ class BoxTest {
     }
 
     @Test
+    void compareToRejectsEmptyBoxes() {
+        Box<Years, Integer> years = Box.of(18);
+        Box<Months, Integer> emptyMonths = Box.empty();
+
+        assertThrows(IllegalStateException.class, () -> years.compareTo(emptyMonths));
+        assertThrows(IllegalStateException.class, () -> emptyMonths.compareTo(years));
+    }
+
+    @Test
     void tcompareToSupportsSubtypeCompatibleTags() {
         Box<Permission, String> permission = Box.of("editor");
         Box<Admin, String> admin = Box.of("owner");
 
         assertTrue(permission.tcompareTo(admin) < 0);
         assertTrue(admin.tcompareTo(permission.into()) > 0);
+    }
+
+    @Test
+    void tcompareToRejectsEmptyBoxes() {
+        Box<Permission, String> permission = Box.of("editor");
+        Box<Admin, String> emptyAdmin = Box.empty();
+
+        assertThrows(IllegalStateException.class, () -> permission.tcompareTo(emptyAdmin));
+        assertThrows(IllegalStateException.class, () -> emptyAdmin.tcompareTo(permission.into()));
     }
 
     @Property
