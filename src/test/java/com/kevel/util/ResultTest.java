@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
 import net.jqwik.api.ForAll;
@@ -17,6 +18,43 @@ import net.jqwik.api.Provide;
 import org.junit.jupiter.api.Test;
 
 class ResultTest {
+
+    static final class TestResource implements AutoCloseable {
+        private final String value;
+        private final AtomicBoolean closed = new AtomicBoolean(false);
+        private final AtomicInteger closeCount = new AtomicInteger(0);
+        private final IOException closeFailure;
+
+        TestResource(String value) {
+            this(value, null);
+        }
+
+        TestResource(String value, IOException closeFailure) {
+            this.value = value;
+            this.closeFailure = closeFailure;
+        }
+
+        String value() {
+            return value;
+        }
+
+        boolean isClosed() {
+            return closed.get();
+        }
+
+        int closeCount() {
+            return closeCount.get();
+        }
+
+        @Override
+        public void close() throws IOException {
+            closed.set(true);
+            closeCount.incrementAndGet();
+            if (closeFailure != null) {
+                throw closeFailure;
+            }
+        }
+    }
 
     enum ValidationError {
         INVALID_INPUT,
@@ -214,6 +252,175 @@ class ResultTest {
 
         IOException thrown = assertThrows(IOException.class, () -> Result.getChecked(err));
         assertEquals("checked", thrown.getMessage());
+    }
+
+    @Test
+    void usingClosesResourceAfterSuccessfulUse() {
+        TestResource resource = new TestResource("hello");
+
+        Result<Integer, IOException> result =
+                Result.using(() -> resource, r -> r.value().length());
+
+        assertTrue(result.isOk());
+        assertEquals(5, result.get());
+        assertTrue(resource.isClosed());
+        assertEquals(1, resource.closeCount());
+    }
+
+    @Test
+    void usingCapturesAcquireFailures() {
+        Result<Integer, IOException> result = Result.<TestResource, Integer, IOException>using(
+                () -> {
+                    throw new IOException("acquire");
+                },
+                resource -> resource.value().length());
+
+        assertTrue(result.isErr());
+        IOException thrown = assertThrows(IOException.class, result::get);
+        assertEquals("acquire", thrown.getMessage());
+    }
+
+    @Test
+    void usingCapturesBodyFailuresAndStillClosesResource() {
+        TestResource resource = new TestResource("hello");
+
+        Result<Integer, IOException> result = Result.using(() -> resource, r -> {
+            throw new IOException("body");
+        });
+
+        assertTrue(result.isErr());
+        IOException thrown = assertThrows(IOException.class, result::get);
+        assertEquals("body", thrown.getMessage());
+        assertTrue(resource.isClosed());
+        assertEquals(1, resource.closeCount());
+    }
+
+    @Test
+    void usingCapturesCloseFailures() {
+        TestResource resource = new TestResource("hello", new IOException("close"));
+
+        Result<Integer, IOException> result =
+                Result.using(() -> resource, r -> r.value().length());
+
+        assertTrue(result.isErr());
+        IOException thrown = assertThrows(IOException.class, result::get);
+        assertEquals("close", thrown.getMessage());
+        assertTrue(resource.isClosed());
+        assertEquals(1, resource.closeCount());
+    }
+
+    @Test
+    void usingPreservesSuppressedCloseFailures() {
+        TestResource resource = new TestResource("hello", new IOException("close"));
+
+        Result<Integer, IOException> result = Result.using(() -> resource, r -> {
+            throw new IOException("body");
+        });
+
+        IOException thrown = assertThrows(IOException.class, result::get);
+        assertEquals("body", thrown.getMessage());
+        assertEquals(1, thrown.getSuppressed().length);
+        assertEquals("close", thrown.getSuppressed()[0].getMessage());
+    }
+
+    @Test
+    void usingWithMapperConvertsThrownExceptions() {
+        TestResource resource = new TestResource("hello", new IOException("close"));
+
+        Result<Integer, ValidationError> result = Result.using(
+                () -> resource,
+                r -> r.value().length(),
+                ex -> ex.getMessage().equals("close") ? ValidationError.BAD_FORMAT : ValidationError.INVALID_INPUT);
+
+        assertTrue(result.isErr());
+        assertEquals(ValidationError.BAD_FORMAT, result.fold(value -> null, error -> error));
+        assertTrue(resource.isClosed());
+    }
+
+    @Test
+    void useClosesCloseableOkValues() throws Exception {
+        TestResource resource = new TestResource("hello");
+        Result<TestResource, ValidationError> result = Result.ok(resource);
+
+        int length = result.use(r -> r.value().length(), error -> -1);
+
+        assertEquals(5, length);
+        assertTrue(resource.isClosed());
+        assertEquals(1, resource.closeCount());
+    }
+
+    @Test
+    void useDoesNotCloseNonCloseableOkValues() throws Exception {
+        Result<String, ValidationError> result = Result.ok("hello");
+
+        int length = result.use(String::length, error -> -1);
+
+        assertEquals(5, length);
+    }
+
+    @Test
+    void useSelectsErrBranchWithoutInvokingOkHandler() throws Exception {
+        AtomicBoolean invoked = new AtomicBoolean(false);
+        Result<TestResource, ValidationError> result = Result.err(ValidationError.BAD_FORMAT);
+
+        int value = result.use(
+                resource -> {
+                    invoked.set(true);
+                    return resource.value().length();
+                },
+                error -> error == ValidationError.BAD_FORMAT ? -2 : -1);
+
+        assertFalse(invoked.get());
+        assertEquals(-2, value);
+    }
+
+    @Test
+    void usePropagatesBodyFailuresAndClosesResource() {
+        TestResource resource = new TestResource("hello");
+        Result<TestResource, ValidationError> result = Result.ok(resource);
+
+        IOException thrown = assertThrows(
+                IOException.class,
+                () -> result.use(
+                        r -> {
+                            throw new IOException("body");
+                        },
+                        error -> null));
+
+        assertEquals("body", thrown.getMessage());
+        assertTrue(resource.isClosed());
+        assertEquals(1, resource.closeCount());
+    }
+
+    @Test
+    void usePropagatesCloseFailures() {
+        TestResource resource = new TestResource("hello", new IOException("close"));
+        Result<TestResource, ValidationError> result = Result.ok(resource);
+
+        IOException thrown =
+                assertThrows(IOException.class, () -> result.use(r -> r.value().length(), error -> -1));
+
+        assertEquals("close", thrown.getMessage());
+        assertTrue(resource.isClosed());
+        assertEquals(1, resource.closeCount());
+    }
+
+    @Test
+    void usePreservesSuppressedCloseFailures() {
+        TestResource resource = new TestResource("hello", new IOException("close"));
+        Result<TestResource, ValidationError> result = Result.ok(resource);
+
+        IOException thrown = assertThrows(
+                IOException.class,
+                () -> result.use(
+                        r -> {
+                            throw new IOException("body");
+                        },
+                        error -> null));
+
+        assertEquals("body", thrown.getMessage());
+        assertEquals(1, thrown.getSuppressed().length);
+        assertEquals("close", thrown.getSuppressed()[0].getMessage());
     }
 
     @Property
