@@ -16,7 +16,7 @@ Style is not decoration. Style is design pressure applied early enough to preven
 
 | Pattern | Rule |
 |---|---|
-| Design | State invariants, legal transitions, failures, and bounds before coding |
+| Design | Specify invariants, legal transitions, failures, and bounds before coding |
 | System shape | Prefer deterministic systems and explicit state machines |
 | Control flow | Keep control flow simple; bound loops; keep a method within 70 lines |
 | Bounds | Put a bound on queues, retries, buffers, input sizes, and in-flight work |
