@@ -87,6 +87,8 @@ For new work, add canonical identifiers to important `Requirement` and `Scenario
 
 Use identifiers to keep the spec authoritative and to give implementation, tests, and review a shared reference point.
 
+By convention, include identifiers in Javadocs of methods that implement the functionality of a given scenario or enforce a given invariant.
+
 A final review pass should still confirm that:
 - identifier granularity is appropriate
     - split identifiers when one tag covers too much behavior
