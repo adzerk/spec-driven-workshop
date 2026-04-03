@@ -174,7 +174,7 @@ public final class BL {
      * @return one-bit signed greater-than predicate
      */
     public static int gt(final int left, final int right) {
-        return lt(right, left);
+        return lt(/* left= */ right, /* right= */ left);
     }
 
     /**
@@ -185,7 +185,7 @@ public final class BL {
      * @return one-bit signed greater-than predicate when subtraction stays in range
      */
     public static int gtUnsafe(final int left, final int right) {
-        return ltUnsafe(right, left);
+        return ltUnsafe(/* left= */ right, /* right= */ left);
     }
 
     /**
@@ -200,7 +200,7 @@ public final class BL {
      * @return one-bit signed greater-than predicate
      */
     public static long gt(final long left, final long right) {
-        return lt(right, left);
+        return lt(/* left= */ right, /* right= */ left);
     }
 
     /**
@@ -211,7 +211,7 @@ public final class BL {
      * @return one-bit signed greater-than predicate when subtraction stays in range
      */
     public static long gtUnsafe(final long left, final long right) {
-        return ltUnsafe(right, left);
+        return ltUnsafe(/* left= */ right, /* right= */ left);
     }
 
     /**
@@ -372,7 +372,7 @@ public final class BL {
         return isNotZero(value) & (isNegative(value) ^ 1);
     }
 
-        /**
+    /**
      * Returns {@code 1} when {@code value > 0}; otherwise returns {@code 0}.
      *
      * <p>Safety requirements: this variant is intentionally unsafe. It matches the legacy
