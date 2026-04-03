@@ -169,40 +169,40 @@ class BoxTest {
     }
 
     @Test
-    void compareToMatchesContainedComparableOrderingAcrossTags() {
+    void compareValueMatchesContainedComparableOrderingAcrossTags() {
         Box<Years, Integer> younger = Box.of(18);
         Box<Months, Integer> older = Box.of(21);
 
-        assertTrue(younger.compareTo(older) < 0);
-        assertTrue(older.compareTo(younger) > 0);
-        assertEquals(0, younger.compareTo(Box.<Months, Integer>of(18)));
+        assertTrue(younger.compareValue(older) < 0);
+        assertTrue(older.compareValue(younger) > 0);
+        assertEquals(0, younger.compareValue(Box.<Months, Integer>of(18)));
     }
 
     @Test
-    void compareToRejectsEmptyBoxes() {
+    void compareValueRejectsEmptyBoxes() {
         Box<Years, Integer> years = Box.of(18);
         Box<Months, Integer> emptyMonths = Box.empty();
 
-        assertThrows(IllegalStateException.class, () -> years.compareTo(emptyMonths));
-        assertThrows(IllegalStateException.class, () -> emptyMonths.compareTo(years));
+        assertThrows(IllegalStateException.class, () -> years.compareValue(emptyMonths));
+        assertThrows(IllegalStateException.class, () -> emptyMonths.compareValue(years));
     }
 
     @Test
-    void tcompareToSupportsSubtypeCompatibleTags() {
+    void tcompareValueSupportsSubtypeCompatibleTags() {
         Box<Permission, String> permission = Box.of("editor");
         Box<Admin, String> admin = Box.of("owner");
 
-        assertTrue(permission.tcompareTo(admin) < 0);
-        assertTrue(admin.tcompareTo(permission.into()) > 0);
+        assertTrue(permission.tcompareValue(admin) < 0);
+        assertTrue(admin.tcompareValue(permission.into()) > 0);
     }
 
     @Test
-    void tcompareToRejectsEmptyBoxes() {
+    void tcompareValueRejectsEmptyBoxes() {
         Box<Permission, String> permission = Box.of("editor");
         Box<Admin, String> emptyAdmin = Box.empty();
 
-        assertThrows(IllegalStateException.class, () -> permission.tcompareTo(emptyAdmin));
-        assertThrows(IllegalStateException.class, () -> emptyAdmin.tcompareTo(permission.into()));
+        assertThrows(IllegalStateException.class, () -> permission.tcompareValue(emptyAdmin));
+        assertThrows(IllegalStateException.class, () -> emptyAdmin.tcompareValue(permission.into()));
     }
 
     @Property
@@ -224,11 +224,11 @@ class BoxTest {
     }
 
     @Property
-    void compareToMatchesIntegerOrdering(@ForAll("nonNullInts") int left, @ForAll("nonNullInts") int right) {
+    void compareValueMatchesIntegerOrdering(@ForAll("nonNullInts") int left, @ForAll("nonNullInts") int right) {
         Box<Years, Integer> years = Box.of(left);
         Box<Months, Integer> months = Box.of(right);
 
-        assertEquals(Integer.compare(left, right), Integer.signum(years.compareTo(months)));
+        assertEquals(Integer.compare(left, right), Integer.signum(years.compareValue(months)));
     }
 
     @Provide

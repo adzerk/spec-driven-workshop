@@ -1,355 +1,1284 @@
 package com.kevel.util;
 
+import com.google.errorprone.annotations.CheckReturnValue;
+
 /**
- * The BL (Branchless) class provides static methods for common comparison and math operations.
+ * Branchless integer/long primitives with explicit overflow signaling.
  *
- * <p>If the methods are given `long` arguments, they will return a `long`.
- * <p>If the methods are given `int` arguments, they will return an `int`.
+ * <p>Invariants:
  *
- * <p>For comparison methods between an `a` or `b`, the return will be `a` or `b`.
- * For most predicate functions, the return will be a `1` for true, or a `0` for false.
- * Eg: You can use these return with multiplication / addition, to remove conditionals in your logic.
+ * <ul>
+ *   <li>predicate methods return {@code 0}/{@code 1} bits only;
+ *   <li>mask helpers and overflow-mask results use {@code 0}/{@code -1} bit masks;
+ *   <li>methods are pure, allocation-free on the hot path, and deterministic;
+ *   <li>ordering methods remain correct at signed integer boundaries.
+ * </ul>
  *
- * <p>Some predicate methods within Java Math lib _should_ be branchless (via an Intrinsic hint),
- * but that may not happen. This library enables you to ensure they are always branchless,
- * and the code does not tag methods with `@IntrinsicCandidate`.
- * Please measure your specific usecase.
+ * <p>Safety requirements: these methods trade Java's usual exception-oriented arithmetic behavior
+ * for explicit masks that callers can compose in vector-friendly code. Where a mathematically exact
+ * result cannot be represented in the same width, this class exposes either a saturating variant or
+ * a result paired with an overflow mask.
  *
- * <p>These branchless methods/functions can be useful for vectorized operations.
+ * <p>Variant selection:
+ *
+ * <ul>
+ *   <li>Use the default methods when you need signed-correct full-range semantics or any
+ *       overflow-aware API, including saturating and overflow-signaling arithmetic;
+ *   <li>prefer {@code JDK} variants for scalar {@code abs}, {@code absDiff}, {@code max},
+ *       {@code min}, and {@code clamp};
+ *   <li>prefer {@code Unsafe} variants when you need more performance and can prove the
+ *       documented overflow bounds, particularly for ordering predicates and {@code isPositive};
+ *   <li>use overflow-mask and saturating variants only when their stronger semantics are required,
+ *       because they are materially more expensive than wrapped-width kernels.
+ * </ul>
+ *
+ * <p>Example:
+ *
+ * <pre>{@code
+ * int clamped = BL.clampJDK(sample, lowerBound, upperBound);
+ * int chooseA = BL.select(BL.lt(left, right), left, right);
+ * BL.IntWithOverflowMask magnitude = BL.absWithOverflowMask(Integer.MIN_VALUE);
+ * int saturated = BL.absSaturating(Integer.MIN_VALUE);
+ * }</pre>
+ *
+ * <p>All methods are thread-safe because the class is stateless.
  */
 public final class BL {
 
     private BL() {}
 
-    // Predicates
-    // -------------------
+    /** Result of an {@code int} arithmetic operation paired with a full-width overflow mask. */
+    public record IntWithOverflowMask(int value, int overflowMask) {}
+
+    /** Result of a {@code long} arithmetic operation paired with a full-width overflow mask. */
+    public record LongWithOverflowMask(long value, long overflowMask) {}
 
     /**
-     * Return 1 if a and b are equal, else 0.
+     * Returns {@code 1} when {@code left == right}; otherwise returns {@code 0}.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit equality predicate
      */
-    public static long equal(final long a, final long b) {
-        return (((a ^ b) | -(a ^ b)) >> 63 & 1) ^ 1;
+    public static int equal(final int left, final int right) {
+        final int xor = left ^ right;
+        return 1 ^ ((xor | -xor) >>> 31);
     }
 
     /**
-     * Return 1 if a and b are equal, else 0.
+     * Returns {@code 1} when {@code left == right}; otherwise returns {@code 0}.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit equality predicate
      */
-    public static int equal(final int a, final int b) {
-        return (((a ^ b) | -(a ^ b)) >> 31 & 1) ^ 1;
+    public static long equal(final long left, final long right) {
+        final long xor = left ^ right;
+        return 1L ^ ((xor | -xor) >>> 63);
     }
 
     /**
-     * Return 1 if a and b are not equal, else 0.
+     * Returns {@code 1} when {@code left != right}; otherwise returns {@code 0}.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit inequality predicate
      */
-    public static long notEqual(final long a, final long b) {
-        return (((a ^ b) | -(a ^ b)) >> 63 & 1);
+    public static int notEqual(final int left, final int right) {
+        final int xor = left ^ right;
+        return (xor | -xor) >>> 31;
     }
 
     /**
-     * Return 1 if a and b are not equal, else 0.
+     * Returns {@code 1} when {@code left != right}; otherwise returns {@code 0}.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit inequality predicate
      */
-    public static int notEqual(final int a, final int b) {
-        return (((a ^ b) | -(a ^ b)) >> 31 & 1);
+    public static long notEqual(final long left, final long right) {
+        final long xor = left ^ right;
+        return (xor | -xor) >>> 63;
     }
 
     /**
-     * Return 1 if {@code a < b}, else 0.
+     * Returns {@code 1} when {@code left < right}; otherwise returns {@code 0}.
+     *
+     * <p>Safety requirements: this default variant is correct across the full signed {@code int}
+     * range. In current benchmarks it is materially slower than {@link #ltUnsafe(int, int)} on
+     * bounded domains, so prefer the unsafe kernel only when the subtraction precondition is proven.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit signed less-than predicate
      */
-    public static long lt(final long a, final long b) {
-        return ((a - b) >> 63) & 1;
+    public static int lt(final int left, final int right) {
+        return lessThanMask(left, right) & 1;
     }
 
     /**
-     * Return 1 if {@code a < b}, else 0.
+     * Returns {@code 1} when {@code left < right}; otherwise returns {@code 0}.
+     *
+     * <p>Safety requirements: this variant is intentionally unsafe. It is only correct when the
+     * caller proves that {@code left - right} does not overflow in two's-complement arithmetic.
+     * Typical valid uses are bounded vector kernels where every lane stays inside a tighter domain
+     * than the full {@code int} range.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit signed less-than predicate when subtraction stays in range
      */
-    public static int lt(final int a, final int b) {
-        return ((a - b) >> 31) & 1;
+    public static int ltUnsafe(final int left, final int right) {
+        return subtractLessThanMaskUnsafe(left, right) & 1;
     }
 
     /**
-     * Return 1 if {@code a > b}, else 0.
+     * Returns {@code 1} when {@code left < right}; otherwise returns {@code 0}.
+     *
+     * <p>Safety requirements: this default variant is correct across the full signed {@code long}
+     * range. In current benchmarks it is materially slower than {@link #ltUnsafe(long, long)} on
+     * bounded domains, so prefer the unsafe kernel only when the subtraction precondition is proven.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit signed less-than predicate
      */
-    public static long gt(final long a, final long b) {
-        return ((b - a) >> 63) & 1;
+    public static long lt(final long left, final long right) {
+        return lessThanMask(left, right) & 1L;
     }
 
     /**
-     * Return 1 if {@code a > b}, else 0.
+     * Returns {@code 1} when {@code left < right}; otherwise returns {@code 0}.
+     *
+     * <p>Safety requirements: this variant is intentionally unsafe. It is only correct when the
+     * caller proves that {@code left - right} does not overflow in two's-complement arithmetic.
+     * Typical valid uses are bounded vector kernels with a tighter caller-controlled numeric range.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit signed less-than predicate when subtraction stays in range
      */
-    public static int gt(final int a, final int b) {
-        return ((b - a) >> 31) & 1;
+    public static long ltUnsafe(final long left, final long right) {
+        return subtractLessThanMaskUnsafe(left, right) & 1L;
     }
 
     /**
-     * Return 1 if {@code a <= b}, else 0.
+     * Returns {@code 1} when {@code left > right}; otherwise returns {@code 0}.
+     *
+     * <p>Safety requirements: this default variant is correct across the full signed {@code int}
+     * range. In current benchmarks it is materially slower than {@link #gtUnsafe(int, int)} on
+     * bounded domains.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit signed greater-than predicate
      */
-    public static long lte(final long a, final long b) {
-        return ((b - a) >> 63 & 1) ^ 1;
+    public static int gt(final int left, final int right) {
+        return lt(right, left);
     }
 
     /**
-     * Return 1 if {@code a <= b}, else 0.
+     * Returns {@code 1} when {@code left > right}; otherwise returns {@code 0}.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit signed greater-than predicate when subtraction stays in range
      */
-    public static int lte(final int a, final int b) {
-        return ((b - a) >> 31 & 1) ^ 1;
+    public static int gtUnsafe(final int left, final int right) {
+        return ltUnsafe(right, left);
     }
 
     /**
-     * Return 1 if {@code a >= b}, else 0.
+     * Returns {@code 1} when {@code left > right}; otherwise returns {@code 0}.
+     *
+     * <p>Safety requirements: this default variant is correct across the full signed {@code long}
+     * range. In current benchmarks it is materially slower than {@link #gtUnsafe(long, long)} on
+     * bounded domains.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit signed greater-than predicate
      */
-    public static long gte(final long a, final long b) {
-        return ((a - b) >> 63 & 1) ^ 1;
+    public static long gt(final long left, final long right) {
+        return lt(right, left);
     }
 
     /**
-     * Return 1 if {@code a >= b}, else 0.
+     * Returns {@code 1} when {@code left > right}; otherwise returns {@code 0}.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit signed greater-than predicate when subtraction stays in range
      */
-    public static int gte(final int a, final int b) {
-        return ((a - b) >> 31 & 1) ^ 1;
+    public static long gtUnsafe(final long left, final long right) {
+        return ltUnsafe(right, left);
     }
 
     /**
-     * Return 1 if a is 0, else 0.
+     * Returns {@code 1} when {@code left <= right}; otherwise returns {@code 0}.
+     *
+     * <p>Safety requirements: this default variant is correct across the full signed {@code int}
+     * range. In current benchmarks it is materially slower than {@link #lteUnsafe(int, int)} on
+     * bounded domains.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit signed less-than-or-equal predicate
      */
-    public static long isZero(final long a) {
-        return (((a | -a) >> 63) & 1) ^ 1;
+    public static int lte(final int left, final int right) {
+        return gt(left, right) ^ 1;
     }
 
     /**
-     * Return 1 if a is 0, else 0.
+     * Returns {@code 1} when {@code left <= right}; otherwise returns {@code 0}.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit signed less-than-or-equal predicate when subtraction stays in range
      */
-    public static int isZero(final int a) {
-        return (((a | -a) >> 31) & 1) ^ 1;
+    public static int lteUnsafe(final int left, final int right) {
+        return gtUnsafe(left, right) ^ 1;
     }
 
     /**
-     * Return 1 if a is not 0, else 0.
+     * Returns {@code 1} when {@code left <= right}; otherwise returns {@code 0}.
+     *
+     * <p>Safety requirements: this default variant is correct across the full signed {@code long}
+     * range. In current benchmarks it is materially slower than {@link #lteUnsafe(long, long)} on
+     * bounded domains.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit signed less-than-or-equal predicate
      */
-    public static long isNotZero(final long a) {
-        return (((a | -a) >> 63) & 1);
+    public static long lte(final long left, final long right) {
+        return gt(left, right) ^ 1L;
     }
 
     /**
-     * Return 1 if a is not 0, else 0.
+     * Returns {@code 1} when {@code left <= right}; otherwise returns {@code 0}.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit signed less-than-or-equal predicate when subtraction stays in range
      */
-    public static int isNotZero(final int a) {
-        return (((a | -a) >> 31) & 1);
+    public static long lteUnsafe(final long left, final long right) {
+        return gtUnsafe(left, right) ^ 1L;
     }
 
     /**
-     * Return 1 if {@code a > 0}, else 0.
+     * Returns {@code 1} when {@code left >= right}; otherwise returns {@code 0}.
+     *
+     * <p>Safety requirements: this default variant is correct across the full signed {@code int}
+     * range. In current benchmarks it is materially slower than {@link #gteUnsafe(int, int)} on
+     * bounded domains.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit signed greater-than-or-equal predicate
      */
-    public static long isPositive(final long a) {
-        return (-a >> 63) & 1;
+    public static int gte(final int left, final int right) {
+        return lt(left, right) ^ 1;
     }
 
     /**
-     * Return 1 if {@code a > 0}, else 0.
+     * Returns {@code 1} when {@code left >= right}; otherwise returns {@code 0}.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit signed greater-than-or-equal predicate when subtraction stays in range
      */
-    public static int isPositive(final int a) {
-        return (-a >> 31) & 1;
+    public static int gteUnsafe(final int left, final int right) {
+        return ltUnsafe(left, right) ^ 1;
     }
 
     /**
-     * Return 1 if {@code a < 0}, else 0.
+     * Returns {@code 1} when {@code left >= right}; otherwise returns {@code 0}.
+     *
+     * <p>Safety requirements: this default variant is correct across the full signed {@code long}
+     * range. In current benchmarks it is materially slower than {@link #gteUnsafe(long, long)} on
+     * bounded domains.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit signed greater-than-or-equal predicate
      */
-    public static long isNegative(final long a) {
-        return (a >> 63) & 1;
+    public static long gte(final long left, final long right) {
+        return lt(left, right) ^ 1L;
     }
 
     /**
-     * Return 1 if {@code a < 0}, else 0.
+     * Returns {@code 1} when {@code left >= right}; otherwise returns {@code 0}.
+     *
+     * @param left first value
+     * @param right second value
+     * @return one-bit signed greater-than-or-equal predicate when subtraction stays in range
      */
-    public static int isNegative(final int a) {
-        return (a >> 31) & 1;
+    public static long gteUnsafe(final long left, final long right) {
+        return ltUnsafe(left, right) ^ 1L;
     }
 
     /**
-     * Return 1 if a is even, else 0.
+     * Returns {@code 1} when {@code value == 0}; otherwise returns {@code 0}.
+     *
+     * @param value input value
+     * @return one-bit zero predicate
      */
-    public static long isEven(final long a) {
-        return (a & 1) ^ 1;
+    public static int isZero(final int value) {
+        return 1 ^ ((value | -value) >>> 31);
     }
 
     /**
-     * Return 1 if a is even, else 0.
+     * Returns {@code 1} when {@code value == 0}; otherwise returns {@code 0}.
+     *
+     * @param value input value
+     * @return one-bit zero predicate
      */
-    public static int isEven(final int a) {
-        return (a & 1) ^ 1;
+    public static long isZero(final long value) {
+        return 1L ^ ((value | -value) >>> 63);
     }
 
     /**
-     * Return 1 if a is odd, else 0.
+     * Returns {@code 1} when {@code value != 0}; otherwise returns {@code 0}.
+     *
+     * @param value input value
+     * @return one-bit non-zero predicate
      */
-    public static long isOdd(final long a) {
-        return a & 1;
+    public static int isNotZero(final int value) {
+        return (value | -value) >>> 31;
     }
 
     /**
-     * Return 1 if a is odd, else 0.
+     * Returns {@code 1} when {@code value != 0}; otherwise returns {@code 0}.
+     *
+     * @param value input value
+     * @return one-bit non-zero predicate
      */
-    public static int isOdd(final int a) {
-        return a & 1;
+    public static long isNotZero(final long value) {
+        return (value | -value) >>> 63;
     }
 
     /**
-     * Return 1 if a is a power of two or is zero, else 0.
+     * Returns {@code 1} when {@code value > 0}; otherwise returns {@code 0}.
+     *
+     * <p>Safety requirements: this default variant is correct across the full signed {@code int}
+     * range, including {@code Integer.MIN_VALUE}. In current benchmarks it is slower than
+     * {@link #isPositiveUnsafe(int)} on bounded domains.
+     *
+     * @param value input value
+     * @return one-bit positive predicate
      */
-    public static long isPowerOfTwo(final long a) {
-        return (~a & (a - 1)) & 1;
+    public static int isPositive(final int value) {
+        return isNotZero(value) & (isNegative(value) ^ 1);
+    }
+
+        /**
+     * Returns {@code 1} when {@code value > 0}; otherwise returns {@code 0}.
+     *
+     * <p>Safety requirements: this variant is intentionally unsafe. It matches the legacy
+     * subtraction-style kernel, which misclassifies the minimum representable value because
+     * negating that value wraps in two's-complement arithmetic.
+     *
+     * @param value input value
+     * @return one-bit positive predicate when {@code -value} stays representable
+     */
+    public static int isPositiveUnsafe(final int value) {
+        return (-value >>> 31) & 1;
     }
 
     /**
-     * Return 1 if a is a power of two or is zero, else 0.
+     * Returns {@code 1} when {@code value > 0}; otherwise returns {@code 0}.
+     *
+     * <p>Safety requirements: this default variant is correct across the full signed {@code long}
+     * range, including {@code Long.MIN_VALUE}. In current benchmarks it is slower than
+     * {@link #isPositiveUnsafe(long)} on bounded domains.
+     *
+     * @param value input value
+     * @return one-bit positive predicate
      */
-    public static int isPowerOfTwo(final int a) {
-        return (~a & (a - 1)) & 1;
+    public static long isPositive(final long value) {
+        return isNotZero(value) & (isNegative(value) ^ 1L);
     }
 
     /**
-     * Return 1 if a is divisible by b, else 0.
+     * Returns {@code 1} when {@code value > 0}; otherwise returns {@code 0}.
+     *
+     * <p>Safety requirements: this variant is intentionally unsafe. It matches the legacy
+     * subtraction-style kernel, which misclassifies the minimum representable value because
+     * negating that value wraps in two's-complement arithmetic.
+     *
+     * @param value input value
+     * @return one-bit positive predicate when {@code -value} stays representable
      */
-    public static long isDivisibleBy(final long a, final long b) {
-        return (a % b & 1) ^ 1;
+    public static long isPositiveUnsafe(final long value) {
+        return (-value >>> 63) & 1L;
     }
 
     /**
-     * Return 1 if a is divisible by b, else 0.
+     * Returns {@code 1} when {@code value < 0}; otherwise returns {@code 0}.
+     *
+     * @param value input value
+     * @return one-bit negative predicate
      */
-    public static int isDivisibleBy(final int a, final int b) {
-        return (a % b & 1) ^ 1;
-    }
-
-    // Strange predicates
-    // -------------------
-
-    /**
-     * Return 1 if {@code a >= 0}, else -1.
-     */
-    public static long isNatural(final long a) {
-        return ((a >> 63) | 1);
+    public static int isNegative(final int value) {
+        return (value >>> 31) & 1;
     }
 
     /**
-     * Return 1 if {@code a >= 0}, else -1.
+     * Returns {@code 1} when {@code value < 0}; otherwise returns {@code 0}.
+     *
+     * @param value input value
+     * @return one-bit negative predicate
      */
-    public static int isNatural(final int a) {
-        return ((a >> 31) | 1);
-    }
-
-    // Select operations
-    // -------------------
-
-    /**
-     * If a == 1, return x, else y.
-     */
-    public static long select(final long a, final long x, final long y) {
-        /*
-        long mask = (equal(a,1) * -1);
-        return ((x ^ y) & mask) ^ y;
-        */
-        return equalRetX(a, 1, x, y);
+    public static long isNegative(final long value) {
+        return (value >>> 63) & 1L;
     }
 
     /**
-     * If a == 1, return x, else y.
+     * Returns {@code 1} when {@code value >= 0}; otherwise returns {@code 0}.
+     *
+     * @param value input value
+     * @return one-bit non-negative predicate
      */
-    public static int select(final int a, final int x, final int y) {
-        /*
-        int mask = (equal(a,1) * -1);
-        return ((x ^ y) & mask) ^ y;
-        */
-        return equalRetX(a, 1, x, y);
+    public static int isNonNegative(final int value) {
+        return isNegative(value) ^ 1;
     }
 
     /**
-     * If a==b, return x, else y.
+     * Returns {@code 1} when {@code value >= 0}; otherwise returns {@code 0}.
+     *
+     * @param value input value
+     * @return one-bit non-negative predicate
      */
-    public static long equalRetX(final long a, final long b, final long x, final long y) {
-        long r = ((a - b) - 1) >> 63;
-        long mask = (((a - b) >> 63) ^ r) & r;
-        return (x & mask) | (y & (~mask));
+    public static long isNonNegative(final long value) {
+        return isNegative(value) ^ 1L;
     }
 
     /**
-     * If a==b, return x, else y.
+     * Returns {@code 1} when {@code value} is even; otherwise returns {@code 0}.
+     *
+     * @param value input value
+     * @return one-bit even predicate
      */
-    public static int equalRetX(final int a, final int b, final int x, final int y) {
-        int r = ((a - b) - 1) >> 31;
-        int mask = (((a - b) >> 31) ^ r) & r;
-        return (x & mask) | (y & (~mask));
-    }
-
-    // Math operations
-    // -------------------
-
-    /**
-     * Return the maximum of a and b.
-     */
-    public static long max(final long a, final long b) {
-        return a ^ ((a ^ b) & ((a - b) >> 63));
+    public static int isEven(final int value) {
+        return (value & 1) ^ 1;
     }
 
     /**
-     * Return the maximum of a and b.
+     * Returns {@code 1} when {@code value} is even; otherwise returns {@code 0}.
+     *
+     * @param value input value
+     * @return one-bit even predicate
      */
-    public static int max(final int a, final int b) {
-        return a ^ ((a ^ b) & ((a - b) >> 31));
+    public static long isEven(final long value) {
+        return (value & 1L) ^ 1L;
     }
 
     /**
-     * Return the min of a and b.
+     * Returns {@code 1} when {@code value} is odd; otherwise returns {@code 0}.
+     *
+     * @param value input value
+     * @return one-bit odd predicate
      */
-    public static long min(final long a, final long b) {
-        return b ^ ((a ^ b) & ((a - b) >> 63));
+    public static int isOdd(final int value) {
+        return value & 1;
     }
 
     /**
-     * Return the min of a and b.
+     * Returns {@code 1} when {@code value} is odd; otherwise returns {@code 0}.
+     *
+     * @param value input value
+     * @return one-bit odd predicate
      */
-    public static int min(final int a, final int b) {
-        return b ^ ((a ^ b) & ((a - b) >> 31));
+    public static long isOdd(final long value) {
+        return value & 1L;
     }
 
     /**
-     * Clamp `a` between a min and max, inclusive.
+     * Returns {@code 1} when {@code value} is zero or a positive power of two; otherwise returns
+     * {@code 0}.
+     *
+     * @param value input value
+     * @return one-bit power-of-two-or-zero predicate
      */
-    public static long clamp(final long a, final long min, final long max) {
-        return min(max(a, min), max);
+    public static int isPowerOfTwoOrZero(final int value) {
+        return isNonNegative(value) & equal(value & (value - 1), 0);
     }
 
     /**
-     * Clamp `a` between a min and max, inclusive.
+     * Returns {@code 1} when {@code value} is zero or a positive power of two; otherwise returns
+     * {@code 0}.
+     *
+     * @param value input value
+     * @return one-bit power-of-two-or-zero predicate
      */
-    public static int clamp(final int a, final int min, final int max) {
-        return min(max(a, min), max);
+    public static long isPowerOfTwoOrZero(final long value) {
+        return isNonNegative(value) & equal(value & (value - 1), 0L);
     }
 
     /**
-     * Return the absolute value of a.
+     * Returns {@code 1} when {@code value} is a strictly positive power of two; otherwise returns
+     * {@code 0}.
+     *
+     * @param value input value
+     * @return one-bit strict power-of-two predicate
      */
-    public static long abs(final long a) {
-        return (a + (a >> 63)) ^ (a >> 63);
+    public static int isPowerOfTwo(final int value) {
+        return isNotZero(value) & isPowerOfTwoOrZero(value);
     }
 
     /**
-     * Return the absolute value of a.
+     * Returns {@code 1} when {@code value} is a strictly positive power of two; otherwise returns
+     * {@code 0}.
+     *
+     * @param value input value
+     * @return one-bit strict power-of-two predicate
      */
-    public static int abs(final int a) {
-        return (a + (a >> 31)) ^ (a >> 31);
+    public static long isPowerOfTwo(final long value) {
+        return isNotZero(value) & isPowerOfTwoOrZero(value);
     }
 
     /**
-     * Return the absolute difference between a and b.
+     * Returns {@code 1} when {@code dividend} is evenly divisible by {@code divisor}; otherwise
+     * returns {@code 0}.
+     *
+     * <p>Safety requirements: this method is total and branchless. A zero divisor returns
+     * {@code 0} instead of throwing so callers can keep vector lanes live.
+     *
+     * @param dividend value to test
+     * @param divisor divisor to test against
+     * @return one-bit divisibility predicate; zero divisor maps to {@code 0}
+     * @implNote Remainder instructions are usually harder to vectorize than bitwise kernels. Use a
+     *     power-of-two divisor and masking when the divisor domain allows it.
      */
-    public static long absDiff(final long a, final long b) {
-        return ((a - b) ^ ((a - b) >> 63)) - ((a - b) >> 63);
+    public static int isDivisibleBy(final int dividend, final int divisor) {
+        final int divisorPresent = isNotZero(divisor);
+        final int safeDivisor = divisor | (divisorPresent ^ 1);
+        return divisorPresent & isZero(dividend % safeDivisor);
     }
 
     /**
-     * Return the absolute difference between a and b.
+     * Returns {@code 1} when {@code dividend} is evenly divisible by {@code divisor}; otherwise
+     * returns {@code 0}.
+     *
+     * <p>Safety requirements: this method is total and branchless. A zero divisor returns
+     * {@code 0} instead of throwing so callers can keep vector lanes live.
+     *
+     * @param dividend value to test
+     * @param divisor divisor to test against
+     * @return one-bit divisibility predicate; zero divisor maps to {@code 0}
+     * @implNote Remainder instructions are usually harder to vectorize than bitwise kernels. Use a
+     *     power-of-two divisor and masking when the divisor domain allows it.
      */
-    public static int absDiff(final int a, final int b) {
-        return ((a - b) ^ ((a - b) >> 31)) - ((a - b) >> 31);
+    public static long isDivisibleBy(final long dividend, final long divisor) {
+        final long divisorPresent = isNotZero(divisor);
+        final long safeDivisor = divisor | (divisorPresent ^ 1L);
+        return divisorPresent & isZero(dividend % safeDivisor);
+    }
+
+    /**
+     * Returns {@code whenTrue} when {@code predicateBit == 1}; otherwise returns {@code whenFalse}.
+     *
+     * @param predicateBit one-bit predicate; values other than {@code 1} select {@code whenFalse}
+     * @param whenTrue selected result for predicate {@code 1}
+     * @param whenFalse selected result otherwise
+     * @return selected branch value without control-flow branching
+     */
+    public static int select(final int predicateBit, final int whenTrue, final int whenFalse) {
+        return equalRetX(predicateBit, 1, whenTrue, whenFalse);
+    }
+
+    /**
+     * Returns {@code whenTrue} when {@code predicateBit == 1}; otherwise returns {@code whenFalse}.
+     *
+     * @param predicateBit one-bit predicate; values other than {@code 1} select {@code whenFalse}
+     * @param whenTrue selected result for predicate {@code 1}
+     * @param whenFalse selected result otherwise
+     * @return selected branch value without control-flow branching
+     */
+    public static long select(final long predicateBit, final long whenTrue, final long whenFalse) {
+        return equalRetX(predicateBit, 1L, whenTrue, whenFalse);
+    }
+
+    /**
+     * Returns {@code whenEqual} when {@code left == right}; otherwise returns {@code whenNotEqual}.
+     *
+     * @param left first comparison value
+     * @param right second comparison value
+     * @param whenEqual selected result when the values match
+     * @param whenNotEqual selected result otherwise
+     * @return selected branch value without control-flow branching
+     */
+    public static int equalRetX(final int left, final int right, final int whenEqual, final int whenNotEqual) {
+        final int mask = equalMask(left, right);
+        return whenNotEqual ^ ((whenEqual ^ whenNotEqual) & mask);
+    }
+
+    /**
+     * Returns {@code whenEqual} when {@code left == right}; otherwise returns {@code whenNotEqual}.
+     *
+     * @param left first comparison value
+     * @param right second comparison value
+     * @param whenEqual selected result when the values match
+     * @param whenNotEqual selected result otherwise
+     * @return selected branch value without control-flow branching
+     */
+    public static long equalRetX(final long left, final long right, final long whenEqual, final long whenNotEqual) {
+        final long mask = equalMask(left, right);
+        return whenNotEqual ^ ((whenEqual ^ whenNotEqual) & mask);
+    }
+
+    /**
+     * Returns the larger of {@code left} and {@code right}.
+     *
+     * <p>Safety requirements: this variant is safe for the full signed {@code int} range and keeps
+     * the comparison expressed as an explicit branchless mask. That shape is useful when callers
+     * want to compose the same ordering kernel into larger bit-manipulation code, even though the
+     * compare-based {@link #maxJDK(int, int)} variant benchmarks much faster in scalar code on this
+     * JVM.
+     *
+     * @param left first candidate
+     * @param right second candidate
+     * @return signed maximum without overflow-sensitive comparisons
+     */
+    public static int max(final int left, final int right) {
+        final int mask = lessThanMask(left, right);
+        return left ^ ((left ^ right) & mask);
+    }
+
+    /**
+     * Returns the larger of {@code left} and {@code right} using JDK comparison intrinsics.
+     *
+     * <p>Safety requirements: this variant is safe for all signed inputs. In current benchmarks it
+     * is the fastest scalar {@code int} max variant on this JVM, and it is included as a practical
+     * alternative for callers who prioritize throughput over a strictly hand-written bit kernel.
+     *
+     * @param left first candidate
+     * @param right second candidate
+     * @return signed maximum
+     */
+    public static int maxJDK(final int left, final int right) {
+        return Math.max(left, right);
+    }
+
+    /**
+     * Returns the larger of {@code left} and {@code right} using the legacy subtraction mask.
+     *
+     * <p>Safety requirements: this variant is intentionally unsafe. It is only correct when the
+     * caller proves that {@code left - right} does not overflow.
+     *
+     * @param left first candidate
+     * @param right second candidate
+     * @return signed maximum when subtraction stays in range
+     */
+    public static int maxUnsafe(final int left, final int right) {
+        final int mask = subtractLessThanMaskUnsafe(left, right);
+        return left ^ ((left ^ right) & mask);
+    }
+
+    /**
+     * Returns the larger of {@code left} and {@code right}.
+     *
+     * <p>Safety requirements: this variant is safe for the full signed {@code long} range and keeps
+     * the comparison expressed as an explicit branchless mask. Prefer {@link #maxJDK(long, long)}
+     * when scalar throughput matters more than preserving a mask-oriented code shape; current
+     * benchmarks show a large gap in favor of the JDK variant.
+     *
+     * @param left first candidate
+     * @param right second candidate
+     * @return signed maximum without overflow-sensitive comparisons
+     */
+    public static long max(final long left, final long right) {
+        final long mask = lessThanMask(left, right);
+        return left ^ ((left ^ right) & mask);
+    }
+
+    /**
+     * Returns the larger of {@code left} and {@code right} using JDK comparison intrinsics.
+     *
+     * <p>Safety requirements: this variant is safe for all signed inputs. In current benchmarks it
+     * is the fastest scalar {@code long} max variant on this JVM.
+     *
+     * @param left first candidate
+     * @param right second candidate
+     * @return signed maximum
+     */
+    public static long maxJDK(final long left, final long right) {
+        return Math.max(left, right);
+    }
+
+    /**
+     * Returns the larger of {@code left} and {@code right} using the legacy subtraction mask.
+     *
+     * <p>Safety requirements: this variant is intentionally unsafe. It is only correct when the
+     * caller proves that {@code left - right} does not overflow.
+     *
+     * @param left first candidate
+     * @param right second candidate
+     * @return signed maximum when subtraction stays in range
+     */
+    public static long maxUnsafe(final long left, final long right) {
+        final long mask = subtractLessThanMaskUnsafe(left, right);
+        return left ^ ((left ^ right) & mask);
+    }
+
+    /**
+     * Returns the smaller of {@code left} and {@code right}.
+     *
+     * <p>Safety requirements: this variant is safe for the full signed {@code int} range and keeps
+     * the ordering logic branchless and mask-composable. Prefer {@link #minJDK(int, int)} when the
+     * call site is ordinary scalar code and HotSpot's intrinsic shaping matters more than explicit
+     * bit-kernel structure; current benchmarks show a large gap in favor of the JDK variant.
+     *
+     * @param left first candidate
+     * @param right second candidate
+     * @return signed minimum without overflow-sensitive comparisons
+     */
+    public static int min(final int left, final int right) {
+        final int mask = lessThanMask(left, right);
+        return right ^ ((left ^ right) & mask);
+    }
+
+    /**
+     * Returns the smaller of {@code left} and {@code right} using JDK comparison intrinsics.
+     *
+     * <p>Safety requirements: this variant is safe for all signed inputs. In current benchmarks it
+     * is the fastest scalar {@code int} min variant on this JVM.
+     *
+     * @param left first candidate
+     * @param right second candidate
+     * @return signed minimum
+     */
+    public static int minJDK(final int left, final int right) {
+        return Math.min(left, right);
+    }
+
+    /**
+     * Returns the smaller of {@code left} and {@code right} using the legacy subtraction mask.
+     *
+     * <p>Safety requirements: this variant is intentionally unsafe. It is only correct when the
+     * caller proves that {@code left - right} does not overflow.
+     *
+     * @param left first candidate
+     * @param right second candidate
+     * @return signed minimum when subtraction stays in range
+     */
+    public static int minUnsafe(final int left, final int right) {
+        final int mask = subtractLessThanMaskUnsafe(left, right);
+        return right ^ ((left ^ right) & mask);
+    }
+
+    /**
+     * Returns the smaller of {@code left} and {@code right}.
+     *
+     * <p>Safety requirements: this variant is safe for the full signed {@code long} range and keeps
+     * the ordering logic branchless and mask-composable. Prefer {@link #minJDK(long, long)} when a
+     * scalar-friendly intrinsic is more important than preserving the explicit mask formulation;
+     * current benchmarks show a large gap in favor of the JDK variant.
+     *
+     * @param left first candidate
+     * @param right second candidate
+     * @return signed minimum without overflow-sensitive comparisons
+     */
+    public static long min(final long left, final long right) {
+        final long mask = lessThanMask(left, right);
+        return right ^ ((left ^ right) & mask);
+    }
+
+    /**
+     * Returns the smaller of {@code left} and {@code right} using JDK comparison intrinsics.
+     *
+     * <p>Safety requirements: this variant is safe for all signed inputs. In current benchmarks it
+     * is the fastest scalar {@code long} min variant on this JVM.
+     *
+     * @param left first candidate
+     * @param right second candidate
+     * @return signed minimum
+     */
+    public static long minJDK(final long left, final long right) {
+        return Math.min(left, right);
+    }
+
+    /**
+     * Returns the smaller of {@code left} and {@code right} using the legacy subtraction mask.
+     *
+     * <p>Safety requirements: this variant is intentionally unsafe. It is only correct when the
+     * caller proves that {@code left - right} does not overflow.
+     *
+     * @param left first candidate
+     * @param right second candidate
+     * @return signed minimum when subtraction stays in range
+     */
+    public static long minUnsafe(final long left, final long right) {
+        final long mask = subtractLessThanMaskUnsafe(left, right);
+        return right ^ ((left ^ right) & mask);
+    }
+
+    /**
+     * Clamps {@code value} to the inclusive range {@code [lowerBound, upperBound]}.
+     *
+     * <p>Preconditions: {@code lowerBound <= upperBound}.
+     *
+     * <p>Postconditions: the result is always within the supplied inclusive range when the bound
+     * precondition holds.
+     *
+     * <p>Safety requirements: this variant keeps both comparisons in the same safe mask-oriented
+     * style as {@link #max(int, int)} and {@link #min(int, int)}. Prefer {@link #clampJDK(int,
+     * int, int)} when scalar throughput matters more than preserving a fully explicit bit kernel;
+     * current benchmarks show a large gap in favor of the JDK variant.
+     *
+     * @param value candidate value
+     * @param lowerBound inclusive lower bound
+     * @param upperBound inclusive upper bound
+     * @return {@code value} clamped to the inclusive range
+     */
+    public static int clamp(final int value, final int lowerBound, final int upperBound) {
+        return min(max(value, lowerBound), upperBound);
+    }
+
+    /**
+     * Clamps {@code value} to the inclusive range {@code [lowerBound, upperBound]} using the JDK
+     * max/min intrinsics.
+     *
+     * <p>Preconditions: {@code lowerBound <= upperBound}.
+     *
+     * <p>Safety requirements: this variant is safe for all signed inputs. In current benchmarks it
+     * is the fastest scalar {@code int} clamp variant on this JVM.
+     *
+     * @param value candidate value
+     * @param lowerBound inclusive lower bound
+     * @param upperBound inclusive upper bound
+     * @return {@code value} clamped to the inclusive range
+     */
+    public static int clampJDK(final int value, final int lowerBound, final int upperBound) {
+        return Math.min(Math.max(value, lowerBound), upperBound);
+    }
+
+    /**
+     * Clamps {@code value} to the inclusive range {@code [lowerBound, upperBound]} using the legacy
+     * subtraction-mask kernels.
+     *
+     * <p>Preconditions: {@code lowerBound <= upperBound} and both intermediate subtractions
+     * {@code value - lowerBound} and {@code max(value, lowerBound) - upperBound} must stay within
+     * range.
+     *
+     * <p>Safety requirements: this variant is intentionally unsafe and exists for callers who can
+     * prove tight numeric bounds and want the most vectorization-friendly code shape.
+     *
+     * @param value candidate value
+     * @param lowerBound inclusive lower bound
+     * @param upperBound inclusive upper bound
+     * @return clamped result when the subtraction preconditions hold
+     */
+    public static int clampUnsafe(final int value, final int lowerBound, final int upperBound) {
+        return minUnsafe(maxUnsafe(value, lowerBound), upperBound);
+    }
+
+    /**
+     * Clamps {@code value} to the inclusive range {@code [lowerBound, upperBound]}.
+     *
+     * <p>Preconditions: {@code lowerBound <= upperBound}.
+     *
+     * <p>Postconditions: the result is always within the supplied inclusive range when the bound
+     * precondition holds.
+     *
+     * <p>Safety requirements: this variant keeps both comparisons in the same safe mask-oriented
+     * style as {@link #max(long, long)} and {@link #min(long, long)}. Prefer {@link #clampJDK(long,
+     * long, long)} when a scalar-friendly intrinsic is more important than preserving explicit mask
+     * composition; current benchmarks show a large gap in favor of the JDK variant.
+     *
+     * @param value candidate value
+     * @param lowerBound inclusive lower bound
+     * @param upperBound inclusive upper bound
+     * @return {@code value} clamped to the inclusive range
+     */
+    public static long clamp(final long value, final long lowerBound, final long upperBound) {
+        return min(max(value, lowerBound), upperBound);
+    }
+
+    /**
+     * Clamps {@code value} to the inclusive range {@code [lowerBound, upperBound]} using the JDK
+     * max/min intrinsics.
+     *
+     * <p>Preconditions: {@code lowerBound <= upperBound}.
+     *
+     * <p>Safety requirements: this variant is safe for all signed inputs. In current benchmarks it
+     * is the fastest scalar {@code long} clamp variant on this JVM.
+     *
+     * @param value candidate value
+     * @param lowerBound inclusive lower bound
+     * @param upperBound inclusive upper bound
+     * @return {@code value} clamped to the inclusive range
+     */
+    public static long clampJDK(final long value, final long lowerBound, final long upperBound) {
+        return Math.min(Math.max(value, lowerBound), upperBound);
+    }
+
+    /**
+     * Clamps {@code value} to the inclusive range {@code [lowerBound, upperBound]} using the legacy
+     * subtraction-mask kernels.
+     *
+     * <p>Preconditions: {@code lowerBound <= upperBound} and both intermediate subtractions
+     * {@code value - lowerBound} and {@code max(value, lowerBound) - upperBound} must stay within
+     * range.
+     *
+     * <p>Safety requirements: this variant is intentionally unsafe and exists for callers who can
+     * prove tight numeric bounds and want the most vectorization-friendly code shape.
+     *
+     * @param value candidate value
+     * @param lowerBound inclusive lower bound
+     * @param upperBound inclusive upper bound
+     * @return clamped result when the subtraction preconditions hold
+     */
+    public static long clampUnsafe(final long value, final long lowerBound, final long upperBound) {
+        return minUnsafe(maxUnsafe(value, lowerBound), upperBound);
+    }
+
+    /**
+     * Returns the JDK-style wrapped-width absolute value of {@code value}.
+     *
+     * <p>Safety requirements: this variant delegates to {@link Math#abs(int)}. It preserves JVM
+     * same-width arithmetic semantics, including returning {@code Integer.MIN_VALUE} for the single
+     * unrepresentable magnitude. In current benchmarks it is the fastest scalar {@code int}
+     * absolute-value variant on this JVM. Use {@link #absSaturating(int)} or
+     * {@link #absWithOverflowMask(int)} when callers need explicit overflow handling.
+     *
+     * @param value source value
+     * @return JDK-style wrapped-width absolute value
+     */
+    public static int absJDK(final int value) {
+        return Math.abs(value);
+    }
+
+    /**
+     * Returns the JDK-style wrapped-width absolute value of {@code value}.
+     *
+     * <p>Safety requirements: this variant delegates to {@link Math#abs(long)}. It preserves JVM
+     * same-width arithmetic semantics, including returning {@code Long.MIN_VALUE} for the single
+     * unrepresentable magnitude. In current benchmarks it is effectively tied with
+     * {@link #absUnsafe(long)} for scalar {@code long} throughput. Use {@link #absSaturating(long)}
+     * or {@link #absWithOverflowMask(long)} when callers need explicit overflow handling.
+     *
+     * @param value source value
+     * @return JDK-style wrapped-width absolute value
+     */
+    public static long absJDK(final long value) {
+        return Math.abs(value);
+    }
+
+    /**
+     * Returns the branchless wrapped-width absolute value of {@code value}.
+     *
+     * <p>Safety requirements: this variant is intentionally unsafe. It preserves the legacy
+     * branchless kernel shape and does not signal the single overflow case where the mathematical
+     * absolute value is unrepresentable in the same width. In current benchmarks it is slower than
+     * {@link #absJDK(int)} for scalar {@code int} throughput.
+     *
+     * @param value source value
+     * @return wrapped-width absolute value using the legacy bit kernel
+     */
+    public static int absUnsafe(final int value) {
+        final int signMask = value >> 31;
+        return (value + signMask) ^ signMask;
+    }
+
+    /**
+     * Returns the branchless wrapped-width absolute value of {@code value}.
+     *
+     * <p>Safety requirements: this variant is intentionally unsafe. It preserves the legacy
+     * branchless kernel shape and does not signal the single overflow case where the mathematical
+     * absolute value is unrepresentable in the same width. In current benchmarks it is effectively
+     * tied with {@link #absJDK(long)} for scalar {@code long} throughput.
+     *
+     * @param value source value
+     * @return wrapped-width absolute value using the legacy bit kernel
+     */
+    public static long absUnsafe(final long value) {
+        final long signMask = value >> 63;
+        return (value + signMask) ^ signMask;
+    }
+
+    /**
+     * Returns the wrapped-width absolute value and a full-width overflow mask.
+     *
+     * <p>Postconditions: {@code overflowMask()} is {@code 0} when the mathematical absolute value
+     * fits in {@code int}; otherwise it is {@code -1} and {@code value()} contains the wrapped JVM
+     * result. In current benchmarks this stronger-semantics variant is materially slower than both
+     * {@link #absJDK(int)} and {@link #absUnsafe(int)}.
+     *
+     * @param value source value
+     * @return wrapped-width magnitude with an overflow mask suitable for branchless repair
+     */
+    @CheckReturnValue
+    public static IntWithOverflowMask absWithOverflowMask(final int value) {
+        return new IntWithOverflowMask(absUnsafe(value), equalMask(value, Integer.MIN_VALUE));
+    }
+
+    /**
+     * Returns the wrapped-width absolute value and a full-width overflow mask.
+     *
+     * <p>Postconditions: {@code overflowMask()} is {@code 0} when the mathematical absolute value
+     * fits in {@code long}; otherwise it is {@code -1} and {@code value()} contains the wrapped JVM
+     * result. In current benchmarks this stronger-semantics variant is materially slower than both
+     * {@link #absJDK(long)} and {@link #absUnsafe(long)}.
+     *
+     * @param value source value
+     * @return wrapped-width magnitude with an overflow mask suitable for branchless repair
+     */
+    @CheckReturnValue
+    public static LongWithOverflowMask absWithOverflowMask(final long value) {
+        return new LongWithOverflowMask(absUnsafe(value), equalMask(value, Long.MIN_VALUE));
+    }
+
+    /**
+     * Returns the saturating absolute value of {@code value}.
+     *
+     * <p>Safety requirements: this stronger-semantics variant is materially slower than
+     * {@link #absJDK(int)} and {@link #absUnsafe(int)} in current benchmarks.
+     *
+     * @param value source value
+     * @return {@code abs(value)} when representable; otherwise {@code Integer.MAX_VALUE}
+     */
+    public static int absSaturating(final int value) {
+        final IntWithOverflowMask result = absWithOverflowMask(value);
+        return (result.value() & ~result.overflowMask()) | (Integer.MAX_VALUE & result.overflowMask());
+    }
+
+    /**
+     * Returns the saturating absolute value of {@code value}.
+     *
+     * <p>Safety requirements: this stronger-semantics variant is materially slower than
+     * {@link #absJDK(long)} and {@link #absUnsafe(long)} in current benchmarks.
+     *
+     * @param value source value
+     * @return {@code abs(value)} when representable; otherwise {@code Long.MAX_VALUE}
+     */
+    public static long absSaturating(final long value) {
+        final LongWithOverflowMask result = absWithOverflowMask(value);
+        return (result.value() & ~result.overflowMask()) | (Long.MAX_VALUE & result.overflowMask());
+    }
+
+    /**
+     * Returns the JDK-style wrapped-width absolute difference of {@code left} and {@code right}.
+     *
+     * <p>Safety requirements: this variant delegates to ordinary Java subtraction plus
+     * {@link Math#abs(int)}. It preserves JVM wraparound semantics rather than the mathematical
+     * absolute difference when the intermediate subtraction overflows. In current benchmarks it is
+     * the fastest scalar {@code int} absolute-difference variant on this JVM. Use
+     * {@link #absDiffSaturating(int, int)} or {@link #absDiffWithOverflowMask(int, int)} when
+     * callers need explicit overflow handling.
+     *
+     * @param left first value
+     * @param right second value
+     * @return JDK-style wrapped-width absolute difference
+     */
+    public static int absDiffJDK(final int left, final int right) {
+        return Math.abs(left - right);
+    }
+
+    /**
+     * Returns the JDK-style wrapped-width absolute difference of {@code left} and {@code right}.
+     *
+     * <p>Safety requirements: this variant delegates to ordinary Java subtraction plus
+     * {@link Math#abs(long)}. It preserves JVM wraparound semantics rather than the mathematical
+     * absolute difference when the intermediate subtraction overflows. In current benchmarks it is
+     * the fastest scalar {@code long} absolute-difference variant on this JVM. Use
+     * {@link #absDiffSaturating(long, long)} or {@link #absDiffWithOverflowMask(long, long)} when
+     * callers need explicit overflow handling.
+     *
+     * @param left first value
+     * @param right second value
+     * @return JDK-style wrapped-width absolute difference
+     */
+    public static long absDiffJDK(final long left, final long right) {
+        return Math.abs(left - right);
+    }
+
+    /**
+     * Returns the branchless wrapped-width absolute difference of {@code left} and {@code right}.
+     *
+     * <p>Safety requirements: this variant is intentionally unsafe. It preserves the legacy
+     * subtraction-and-sign-flip kernel and does not signal intermediate subtraction overflow. In
+     * current benchmarks it is faster than the stronger-semantics variants but slower than
+     * {@link #absDiffJDK(int, int)}.
+     *
+     * @param left first value
+     * @param right second value
+     * @return wrapped-width absolute difference using the legacy bit kernel
+     */
+    public static int absDiffUnsafe(final int left, final int right) {
+        final int difference = left - right;
+        final int signMask = difference >> 31;
+        return (difference ^ signMask) - signMask;
+    }
+
+    /**
+     * Returns the branchless wrapped-width absolute difference of {@code left} and {@code right}.
+     *
+     * <p>Safety requirements: this variant is intentionally unsafe. It preserves the legacy
+     * subtraction-and-sign-flip kernel and does not signal intermediate subtraction overflow. In
+     * current benchmarks it is faster than the stronger-semantics variants but slower than
+     * {@link #absDiffJDK(long, long)}.
+     *
+     * @param left first value
+     * @param right second value
+     * @return wrapped-width absolute difference using the legacy bit kernel
+     */
+    public static long absDiffUnsafe(final long left, final long right) {
+        final long difference = left - right;
+        final long signMask = difference >> 63;
+        return (difference ^ signMask) - signMask;
+    }
+
+    /**
+     * Returns the wrapped-width absolute difference and a full-width overflow mask.
+     *
+     * <p>Postconditions: {@code overflowMask()} is {@code 0} when {@code |left - right|} fits in
+     * {@code int}; otherwise it is {@code -1} and {@code value()} contains the wrapped JVM result.
+     * In current benchmarks this stronger-semantics variant is materially slower than
+     * {@link #absDiffJDK(int, int)} and {@link #absDiffUnsafe(int, int)}.
+     *
+     * @param left first value
+     * @param right second value
+     * @return wrapped-width absolute difference with overflow signaling
+     */
+    @CheckReturnValue
+    public static IntWithOverflowMask absDiffWithOverflowMask(final int left, final int right) {
+        // Reorder first so the mathematical difference is non-negative. Any negative wrapped result
+        // after subtraction therefore signals overflow and can be propagated as a full-width mask.
+        final int larger = max(left, right);
+        final int smaller = min(left, right);
+        final int difference = larger - smaller;
+        return new IntWithOverflowMask(difference, difference >> 31);
+    }
+
+    /**
+     * Returns the wrapped-width absolute difference and a full-width overflow mask.
+     *
+     * <p>Postconditions: {@code overflowMask()} is {@code 0} when {@code |left - right|} fits in
+     * {@code long}; otherwise it is {@code -1} and {@code value()} contains the wrapped JVM result.
+     * In current benchmarks this stronger-semantics variant is materially slower than
+     * {@link #absDiffJDK(long, long)} and {@link #absDiffUnsafe(long, long)}.
+     *
+     * @param left first value
+     * @param right second value
+     * @return wrapped-width absolute difference with overflow signaling
+     */
+    @CheckReturnValue
+    public static LongWithOverflowMask absDiffWithOverflowMask(final long left, final long right) {
+        final long larger = max(left, right);
+        final long smaller = min(left, right);
+        final long difference = larger - smaller;
+        return new LongWithOverflowMask(difference, difference >> 63);
+    }
+
+    /**
+     * Returns the saturating absolute difference of {@code left} and {@code right}.
+     *
+     * <p>Safety requirements: this stronger-semantics variant is materially slower than
+     * {@link #absDiffJDK(int, int)} and {@link #absDiffUnsafe(int, int)} in current benchmarks.
+     *
+     * @param left first value
+     * @param right second value
+     * @return {@code |left - right|} when representable; otherwise {@code Integer.MAX_VALUE}
+     */
+    public static int absDiffSaturating(final int left, final int right) {
+        final IntWithOverflowMask result = absDiffWithOverflowMask(left, right);
+        return (result.value() & ~result.overflowMask()) | (Integer.MAX_VALUE & result.overflowMask());
+    }
+
+    /**
+     * Returns the saturating absolute difference of {@code left} and {@code right}.
+     *
+     * <p>Safety requirements: this stronger-semantics variant is materially slower than
+     * {@link #absDiffJDK(long, long)} and {@link #absDiffUnsafe(long, long)} in current benchmarks.
+     *
+     * @param left first value
+     * @param right second value
+     * @return {@code |left - right|} when representable; otherwise {@code Long.MAX_VALUE}
+     */
+    public static long absDiffSaturating(final long left, final long right) {
+        final LongWithOverflowMask result = absDiffWithOverflowMask(left, right);
+        return (result.value() & ~result.overflowMask()) | (Long.MAX_VALUE & result.overflowMask());
+    }
+
+    /**
+     * Returns an all-ones mask when {@code left < right}; otherwise returns zero.
+     *
+     * @param left first value
+     * @param right second value
+     * @return {@code -1} for true and {@code 0} for false
+     */
+    private static int lessThanMask(final int left, final int right) {
+        final int leftSignMask = left >> 31;
+        final int rightSignMask = right >> 31;
+        final int differentSignMask = leftSignMask ^ rightSignMask;
+        final int subtractionSignMask = (left - right) >> 31;
+        return (differentSignMask & leftSignMask) | (~differentSignMask & subtractionSignMask);
+    }
+
+    /**
+     * Returns an all-ones mask when {@code left < right} using the legacy subtraction-only kernel.
+     *
+     * <p>Safety requirements: this helper is intentionally unsafe and only correct when
+     * {@code left - right} cannot overflow.
+     *
+     * @param left first value
+     * @param right second value
+     * @return {@code -1} for true and {@code 0} for false when subtraction stays in range
+     */
+    private static int subtractLessThanMaskUnsafe(final int left, final int right) {
+        return (left - right) >> 31;
+    }
+
+    /**
+     * Returns an all-ones mask when {@code left < right}; otherwise returns zero.
+     *
+     * @param left first value
+     * @param right second value
+     * @return {@code -1} for true and {@code 0} for false
+     */
+    private static long lessThanMask(final long left, final long right) {
+        final long leftSignMask = left >> 63;
+        final long rightSignMask = right >> 63;
+        final long differentSignMask = leftSignMask ^ rightSignMask;
+        final long subtractionSignMask = (left - right) >> 63;
+        return (differentSignMask & leftSignMask) | (~differentSignMask & subtractionSignMask);
+    }
+
+    /**
+     * Returns an all-ones mask when {@code left < right} using the legacy subtraction-only kernel.
+     *
+     * <p>Safety requirements: this helper is intentionally unsafe and only correct when
+     * {@code left - right} cannot overflow.
+     *
+     * @param left first value
+     * @param right second value
+     * @return {@code -1} for true and {@code 0} for false when subtraction stays in range
+     */
+    private static long subtractLessThanMaskUnsafe(final long left, final long right) {
+        return (left - right) >> 63;
+    }
+
+    /**
+     * Returns an all-ones mask when {@code left == right}; otherwise returns zero.
+     *
+     * @param left first value
+     * @param right second value
+     * @return {@code -1} for equality and {@code 0} otherwise
+     */
+    private static int equalMask(final int left, final int right) {
+        return -equal(left, right);
+    }
+
+    /**
+     * Returns an all-ones mask when {@code left == right}; otherwise returns zero.
+     *
+     * @param left first value
+     * @param right second value
+     * @return {@code -1} for equality and {@code 0} otherwise
+     */
+    private static long equalMask(final long left, final long right) {
+        return -equal(left, right);
     }
 }

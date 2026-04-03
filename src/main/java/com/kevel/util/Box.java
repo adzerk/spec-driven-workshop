@@ -178,7 +178,7 @@ public final class Box<Tag, T> implements Supplier<T> {
      * Compares wrapped values across any two tags.
      * Box adheres to the general value-based rules for comparison and equality.
      * Calls {@code Integer.signum} on the return of compareTo; Do not program against the concrete values of compareTo.
-     * Use {@code Box.tequals(...)} for a stricter comparison.
+     * Use {@code Box.tequals(...)} and {@code Box.tcompareValue(...)} for a stricter comparison.
      *
      * <p>Preconditions: both boxes must be non-empty and both wrapped values must participate in the
      * declared {@link Comparable} relation.
@@ -195,7 +195,7 @@ public final class Box<Tag, T> implements Supplier<T> {
      * @throws NullPointerException if {@code other} is null
      * @throws IllegalStateException if either box is empty
      */
-    public <X, R extends Comparable<T>> int compareTo(Box<X, R> other) {
+    public <X, R extends Comparable<T>> int compareValue(Box<X, R> other) {
         Box<X, R> checkedOther = requireComparableOther(other, "compareTo");
         requirePresent(value, "compareTo requires a non-empty receiver. This Box had a value of 'null'.");
         return -Integer.signum(checkedOther.value.compareTo(value));
@@ -216,7 +216,7 @@ public final class Box<Tag, T> implements Supplier<T> {
      * @throws NullPointerException if {@code other} is null
      * @throws IllegalStateException if either box is empty
      */
-    public <X extends Tag, R extends Comparable<T>> int tcompareTo(Box<X, R> other) {
+    public <X extends Tag, R extends Comparable<T>> int tcompareValue(Box<X, R> other) {
         Box<X, R> checkedOther = requireComparableOther(other, "tcompareTo");
         requirePresent(value, "tcompareTo requires a non-empty receiver. This Box had a value of 'null'");
         return -Integer.signum(checkedOther.value.compareTo(value));

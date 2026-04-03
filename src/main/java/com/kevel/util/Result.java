@@ -268,6 +268,7 @@ public sealed interface Result<T, E> extends Supplier<T> {
      *
      * @throws IllegalStateException if this Result is Err and the error is not an Exception
      */
+    @Override
     T get();
 
     /**
