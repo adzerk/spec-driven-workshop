@@ -360,6 +360,10 @@
         <version>${spotless.maven.plugin.version}</version>
         <configuration>
           <java>
+            <toggleOffOn>
+                <off>/*@</off> <!-- Ignore JML specs since they indent differently -->
+                <on>@*/</on>
+            </toggleOffOn>
             <!--
             <googleJavaFormat>
               <version>${google.java.format.version}</version>
