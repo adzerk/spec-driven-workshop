@@ -648,6 +648,8 @@ public final class BL {
 
     /**
      * Returns the larger of {@code left} and {@code right} using JDK comparison intrinsics.
+     * The JDK code is written as {@code return (a >= b) ? a : b;} and is not branchless by default.
+     * The intrinsics should replace that with a branchless variant, but use carefully.
      *
      * <p>Safety requirements: this variant is safe for all signed inputs. In current benchmarks it
      * is the fastest scalar {@code int} max variant on this JVM, and it is included as a practical
@@ -695,6 +697,8 @@ public final class BL {
 
     /**
      * Returns the larger of {@code left} and {@code right} using JDK comparison intrinsics.
+     * The JDK code is written as {@code return (a >= b) ? a : b;} and is not branchless by default.
+     * The intrinsics should replace that with a branchless variant, but use carefully.
      *
      * <p>Safety requirements: this variant is safe for all signed inputs. In current benchmarks it
      * is the fastest scalar {@code long} max variant on this JVM.
@@ -741,6 +745,8 @@ public final class BL {
 
     /**
      * Returns the smaller of {@code left} and {@code right} using JDK comparison intrinsics.
+     * The JDK code is written as {@code return (a <= b) ? a : b;} and is not branchless by default.
+     * The intrinsics should replace that with a branchless variant, but use carefully.
      *
      * <p>Safety requirements: this variant is safe for all signed inputs. In current benchmarks it
      * is the fastest scalar {@code int} min variant on this JVM.
@@ -787,6 +793,8 @@ public final class BL {
 
     /**
      * Returns the smaller of {@code left} and {@code right} using JDK comparison intrinsics.
+     * The JDK code is written as {@code return (a <= b) ? a : b;} and is not branchless by default.
+     * The intrinsics should replace that with a branchless variant, but use carefully.
      *
      * <p>Safety requirements: this variant is safe for all signed inputs. In current benchmarks it
      * is the fastest scalar {@code long} min variant on this JVM.
@@ -839,6 +847,9 @@ public final class BL {
     /**
      * Clamps {@code value} to the inclusive range {@code [lowerBound, upperBound]} using the JDK
      * max/min intrinsics.
+     * The JDK code is written as {@code return (int) Math.min(max, Math.max(value, min));} and
+     * is not branchless by default.
+     * The intrinsics should replace that with a branchless variant, but use carefully.
      *
      * <p>Preconditions: {@code lowerBound <= upperBound}.
      *
@@ -899,6 +910,9 @@ public final class BL {
     /**
      * Clamps {@code value} to the inclusive range {@code [lowerBound, upperBound]} using the JDK
      * max/min intrinsics.
+     * The JDK code is written as {@code return Math.min(max, Math.max(value, min));} and
+     * is not branchless by default.
+     * The intrinsics should replace that with a branchless variant, but use carefully.
      *
      * <p>Preconditions: {@code lowerBound <= upperBound}.
      *
@@ -936,6 +950,9 @@ public final class BL {
 
     /**
      * Returns the JDK-style wrapped-width absolute value of {@code value}.
+     * The JDK code is written as {@code return (a < 0) ? -a : a;;} and is not branchless
+     * by default.
+     * The intrinsics should replace that with a branchless variant, but use carefully.
      *
      * <p>Safety requirements: this variant delegates to {@link Math#abs(int)}. It preserves JVM
      * same-width arithmetic semantics, including returning {@code Integer.MIN_VALUE} for the single
@@ -952,6 +969,9 @@ public final class BL {
 
     /**
      * Returns the JDK-style wrapped-width absolute value of {@code value}.
+     * The JDK code is written as {@code return (a < 0) ? -a : a;;} and is not branchless
+     * by default.
+     * The intrinsics should replace that with a branchless variant, but use carefully.
      *
      * <p>Safety requirements: this variant delegates to {@link Math#abs(long)}. It preserves JVM
      * same-width arithmetic semantics, including returning {@code Long.MIN_VALUE} for the single
@@ -1060,6 +1080,9 @@ public final class BL {
 
     /**
      * Returns the JDK-style wrapped-width absolute difference of {@code left} and {@code right}.
+     * The `abs` JDK code is written as {@code return (a < 0) ? -a : a;;} and is not branchless
+     * by default.
+     * The intrinsics should replace that with a branchless variant, but use carefully.
      *
      * <p>Safety requirements: this variant delegates to ordinary Java subtraction plus
      * {@link Math#abs(int)}. It preserves JVM wraparound semantics rather than the mathematical
@@ -1078,6 +1101,9 @@ public final class BL {
 
     /**
      * Returns the JDK-style wrapped-width absolute difference of {@code left} and {@code right}.
+     * The `abs` JDK code is written as {@code return (a < 0) ? -a : a;;} and is not branchless
+     * by default.
+     * The intrinsics should replace that with a branchless variant, but use carefully.
      *
      * <p>Safety requirements: this variant delegates to ordinary Java subtraction plus
      * {@link Math#abs(long)}. It preserves JVM wraparound semantics rather than the mathematical

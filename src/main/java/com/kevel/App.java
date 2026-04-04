@@ -7,7 +7,7 @@ public final class App {
     // We can explicitly disable "Extended Static Checking" (esc) and
     // Runtime Assertion Checking (rac) for methods we want OpenJML to skip.
 
-    // //@ skipesc skiprac // this is commented out so we can see the spec error
+    // @ skipesc skiprac // comment this out if you want to see the spec error
     public static void main(String[] args) {
         System.out.println("10 and 20 make: " + increasingSum(10, 20));
         System.out.println("20 and 10 make: " + increasingSum(20, 10) + " <-- look at that!");
@@ -22,7 +22,7 @@ public final class App {
         requires y >= x;
         ensures \result > y;
         pure
-        //code_java_math // Uncomment to silence overflow/underflow
+        code_java_math // Comment to see overflow/underflow errors spotted
     @*/
     public static int increasingSum(final int x, final int y) {
         assert x <= y : "Args were not in increasing order: " + x + " and " + y;
