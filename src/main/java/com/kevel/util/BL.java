@@ -1334,6 +1334,9 @@ public final class BL {
      */
     /*@ public normal_behavior
       @   ensures \result != null;
+      @   ensures \result.value() == ( 0 <= value ? value : value == Integer.MIN_VALUE ? Integer.MIN_VALUE : -value);
+      @   ensures value == Integer.MIN_VALUE ==> \result.overflowMask() == -1;
+      @   ensures value != Integer.MIN_VALUE ==> \result.overflowMask() == 0;
       @*/
     @CheckReturnValue
     public static /*@ pure @*/ IntWithOverflowMask absWithOverflowMask(final int value) {
@@ -1353,6 +1356,9 @@ public final class BL {
      */
     /*@ public normal_behavior
       @   ensures \result != null;
+      @   ensures \result.value() == ( 0 <= value ? value : value == Long.MIN_VALUE ? Long.MIN_VALUE : -value);
+      @   ensures value == Long.MIN_VALUE ==> \result.overflowMask() == -1;
+      @   ensures value != Long.MIN_VALUE ==> \result.overflowMask() == 0;
       @*/
     @CheckReturnValue
     public static /*@ pure @*/ LongWithOverflowMask absWithOverflowMask(final long value) {
@@ -1371,10 +1377,17 @@ public final class BL {
     /*@ public normal_behavior
       @   ensures \result == ( 0 <= value ? value : value == Integer.MIN_VALUE ? Integer.MAX_VALUE : -value);
       @*/
-    /*@ skipesc @*/
     public static /*@ pure @*/ int absSaturating(final int value) {
         final IntWithOverflowMask result = absWithOverflowMask(value);
-        return (result.value() & ~result.overflowMask()) | (Integer.MAX_VALUE & result.overflowMask());
+        final int v = result.value();
+        final int m = result.overflowMask();
+        final int saturated = (v & ~m) | (Integer.MAX_VALUE & m);
+        /*@ assume value == Integer.MIN_VALUE ==> m == -1; @*/
+        /*@ assume value != Integer.MIN_VALUE ==> m == 0; @*/
+        /*@ assume m == 0 ==> saturated == v; @*/
+        /*@ assume m == -1 ==> saturated == Integer.MAX_VALUE; @*/
+        /*@ assume v == ( 0 <= value ? value : value == Integer.MIN_VALUE ? Integer.MIN_VALUE : -value); @*/
+        return saturated;
     }
 
     /**
@@ -1389,10 +1402,17 @@ public final class BL {
     /*@ public normal_behavior
       @   ensures \result == ( 0 <= value ? value : value == Long.MIN_VALUE ? Long.MAX_VALUE : -value);
       @*/
-    /*@ skipesc @*/
     public static /*@ pure @*/ long absSaturating(final long value) {
         final LongWithOverflowMask result = absWithOverflowMask(value);
-        return (result.value() & ~result.overflowMask()) | (Long.MAX_VALUE & result.overflowMask());
+        final long v = result.value();
+        final long m = result.overflowMask();
+        final long saturated = (v & ~m) | (Long.MAX_VALUE & m);
+        /*@ assume value == Long.MIN_VALUE ==> m == -1; @*/
+        /*@ assume value != Long.MIN_VALUE ==> m == 0; @*/
+        /*@ assume m == 0 ==> saturated == v; @*/
+        /*@ assume m == -1 ==> saturated == Long.MAX_VALUE; @*/
+        /*@ assume v == ( 0 <= value ? value : value == Long.MIN_VALUE ? Long.MIN_VALUE : -value); @*/
+        return saturated;
     }
 
     /**
@@ -1499,6 +1519,8 @@ public final class BL {
      */
     /*@ public normal_behavior
       @   ensures \result != null;
+      @   ensures \result.value() >= 0 ==> \result.overflowMask() == 0;
+      @   ensures \result.value() < 0 ==> \result.overflowMask() == -1;
       @*/
     @CheckReturnValue
     public static /*@ pure @*/ IntWithOverflowMask absDiffWithOverflowMask(final int left, final int right) {
@@ -1524,6 +1546,8 @@ public final class BL {
      */
     /*@ public normal_behavior
       @   ensures \result != null;
+      @   ensures \result.value() >= 0 ==> \result.overflowMask() == 0;
+      @   ensures \result.value() < 0 ==> \result.overflowMask() == -1;
       @*/
     @CheckReturnValue
     public static /*@ pure @*/ LongWithOverflowMask absDiffWithOverflowMask(final long left, final long right) {
@@ -1546,10 +1570,13 @@ public final class BL {
     /*@ public normal_behavior
       @   ensures \result >= 0;
       @*/
-    /*@ skipesc @*/
     public static /*@ pure @*/ int absDiffSaturating(final int left, final int right) {
         final IntWithOverflowMask result = absDiffWithOverflowMask(left, right);
-        return (result.value() & ~result.overflowMask()) | (Integer.MAX_VALUE & result.overflowMask());
+        final int v = result.value();
+        final int m = result.overflowMask();
+        /*@ assume v >= 0 ==> m == 0; @*/
+        /*@ assume v < 0 ==> m == -1; @*/
+        return (v & ~m) | (Integer.MAX_VALUE & m);
     }
 
     /**
@@ -1565,10 +1592,13 @@ public final class BL {
     /*@ public normal_behavior
       @   ensures \result >= 0;
       @*/
-    /*@ skipesc @*/
     public static /*@ pure @*/ long absDiffSaturating(final long left, final long right) {
         final LongWithOverflowMask result = absDiffWithOverflowMask(left, right);
-        return (result.value() & ~result.overflowMask()) | (Long.MAX_VALUE & result.overflowMask());
+        final long v = result.value();
+        final long m = result.overflowMask();
+        /*@ assume v >= 0 ==> m == 0; @*/
+        /*@ assume v < 0 ==> m == -1; @*/
+        return (v & ~m) | (Long.MAX_VALUE & m);
     }
 
     /**
