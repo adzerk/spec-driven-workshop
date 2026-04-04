@@ -43,6 +43,7 @@ import com.google.errorprone.annotations.CheckReturnValue;
  *
  * <p>All methods are thread-safe because the class is stateless.
  */
+/*@ code_java_math @*/
 public final class BL {
 
     private BL() {}
@@ -60,7 +61,11 @@ public final class BL {
      * @param right second value
      * @return one-bit equality predicate
      */
-    public static int equal(final int left, final int right) {
+    /*@ public normal_behavior
+      @   ensures left == right ==> \result == 1;
+      @   ensures left != right ==> \result == 0;
+      @*/
+    public static /*@ pure @*/ int equal(final int left, final int right) {
         final int xor = left ^ right;
         return 1 ^ ((xor | -xor) >>> 31);
     }
@@ -72,7 +77,11 @@ public final class BL {
      * @param right second value
      * @return one-bit equality predicate
      */
-    public static long equal(final long left, final long right) {
+    /*@ public normal_behavior
+      @   ensures left == right ==> \result == 1L;
+      @   ensures left != right ==> \result == 0L;
+      @*/
+    public static /*@ pure @*/ long equal(final long left, final long right) {
         final long xor = left ^ right;
         return 1L ^ ((xor | -xor) >>> 63);
     }
@@ -84,7 +93,11 @@ public final class BL {
      * @param right second value
      * @return one-bit inequality predicate
      */
-    public static int notEqual(final int left, final int right) {
+    /*@ public normal_behavior
+      @   ensures left != right ==> \result == 1;
+      @   ensures left == right ==> \result == 0;
+      @*/
+    public static /*@ pure @*/ int notEqual(final int left, final int right) {
         final int xor = left ^ right;
         return (xor | -xor) >>> 31;
     }
@@ -96,7 +109,11 @@ public final class BL {
      * @param right second value
      * @return one-bit inequality predicate
      */
-    public static long notEqual(final long left, final long right) {
+    /*@ public normal_behavior
+      @   ensures left != right ==> \result == 1L;
+      @   ensures left == right ==> \result == 0L;
+      @*/
+    public static /*@ pure @*/ long notEqual(final long left, final long right) {
         final long xor = left ^ right;
         return (xor | -xor) >>> 63;
     }
@@ -112,7 +129,11 @@ public final class BL {
      * @param right second value
      * @return one-bit signed less-than predicate
      */
-    public static int lt(final int left, final int right) {
+    /*@ public normal_behavior
+      @   ensures left < right ==> \result == 1;
+      @   ensures left >= right ==> \result == 0;
+      @*/
+    public static /*@ pure @*/ int lt(final int left, final int right) {
         return lessThanMask(left, right) & 1;
     }
 
@@ -128,7 +149,10 @@ public final class BL {
      * @param right second value
      * @return one-bit signed less-than predicate when subtraction stays in range
      */
-    public static int ltUnsafe(final int left, final int right) {
+    /*@ public normal_behavior
+      @   ensures \result == 0 || \result == 1;
+      @*/
+    public static /*@ pure @*/ int ltUnsafe(final int left, final int right) {
         return subtractLessThanMaskUnsafe(left, right) & 1;
     }
 
@@ -143,7 +167,11 @@ public final class BL {
      * @param right second value
      * @return one-bit signed less-than predicate
      */
-    public static long lt(final long left, final long right) {
+    /*@ public normal_behavior
+      @   ensures left < right ==> \result == 1L;
+      @   ensures left >= right ==> \result == 0L;
+      @*/
+    public static /*@ pure @*/ long lt(final long left, final long right) {
         return lessThanMask(left, right) & 1L;
     }
 
@@ -158,7 +186,10 @@ public final class BL {
      * @param right second value
      * @return one-bit signed less-than predicate when subtraction stays in range
      */
-    public static long ltUnsafe(final long left, final long right) {
+    /*@ public normal_behavior
+      @   ensures \result == 0L || \result == 1L;
+      @*/
+    public static /*@ pure @*/ long ltUnsafe(final long left, final long right) {
         return subtractLessThanMaskUnsafe(left, right) & 1L;
     }
 
@@ -173,7 +204,11 @@ public final class BL {
      * @param right second value
      * @return one-bit signed greater-than predicate
      */
-    public static int gt(final int left, final int right) {
+    /*@ public normal_behavior
+      @   ensures left > right ==> \result == 1;
+      @   ensures left <= right ==> \result == 0;
+      @*/
+    public static /*@ pure @*/ int gt(final int left, final int right) {
         return lt(/* left= */ right, /* right= */ left);
     }
 
@@ -184,7 +219,10 @@ public final class BL {
      * @param right second value
      * @return one-bit signed greater-than predicate when subtraction stays in range
      */
-    public static int gtUnsafe(final int left, final int right) {
+    /*@ public normal_behavior
+      @   ensures \result == 0 || \result == 1;
+      @*/
+    public static /*@ pure @*/ int gtUnsafe(final int left, final int right) {
         return ltUnsafe(/* left= */ right, /* right= */ left);
     }
 
@@ -199,7 +237,11 @@ public final class BL {
      * @param right second value
      * @return one-bit signed greater-than predicate
      */
-    public static long gt(final long left, final long right) {
+    /*@ public normal_behavior
+      @   ensures left > right ==> \result == 1L;
+      @   ensures left <= right ==> \result == 0L;
+      @*/
+    public static /*@ pure @*/ long gt(final long left, final long right) {
         return lt(/* left= */ right, /* right= */ left);
     }
 
@@ -210,7 +252,10 @@ public final class BL {
      * @param right second value
      * @return one-bit signed greater-than predicate when subtraction stays in range
      */
-    public static long gtUnsafe(final long left, final long right) {
+    /*@ public normal_behavior
+      @   ensures \result == 0L || \result == 1L;
+      @*/
+    public static /*@ pure @*/ long gtUnsafe(final long left, final long right) {
         return ltUnsafe(/* left= */ right, /* right= */ left);
     }
 
@@ -225,7 +270,11 @@ public final class BL {
      * @param right second value
      * @return one-bit signed less-than-or-equal predicate
      */
-    public static int lte(final int left, final int right) {
+    /*@ public normal_behavior
+      @   ensures left <= right ==> \result == 1;
+      @   ensures left > right ==> \result == 0;
+      @*/
+    public static /*@ pure @*/ int lte(final int left, final int right) {
         return gt(left, right) ^ 1;
     }
 
@@ -236,7 +285,10 @@ public final class BL {
      * @param right second value
      * @return one-bit signed less-than-or-equal predicate when subtraction stays in range
      */
-    public static int lteUnsafe(final int left, final int right) {
+    /*@ public normal_behavior
+      @   ensures \result == 0 || \result == 1;
+      @*/
+    public static /*@ pure @*/ int lteUnsafe(final int left, final int right) {
         return gtUnsafe(left, right) ^ 1;
     }
 
@@ -251,7 +303,11 @@ public final class BL {
      * @param right second value
      * @return one-bit signed less-than-or-equal predicate
      */
-    public static long lte(final long left, final long right) {
+    /*@ public normal_behavior
+      @   ensures left <= right ==> \result == 1L;
+      @   ensures left > right ==> \result == 0L;
+      @*/
+    public static /*@ pure @*/ long lte(final long left, final long right) {
         return gt(left, right) ^ 1L;
     }
 
@@ -262,7 +318,10 @@ public final class BL {
      * @param right second value
      * @return one-bit signed less-than-or-equal predicate when subtraction stays in range
      */
-    public static long lteUnsafe(final long left, final long right) {
+    /*@ public normal_behavior
+      @   ensures \result == 0L || \result == 1L;
+      @*/
+    public static /*@ pure @*/ long lteUnsafe(final long left, final long right) {
         return gtUnsafe(left, right) ^ 1L;
     }
 
@@ -277,7 +336,11 @@ public final class BL {
      * @param right second value
      * @return one-bit signed greater-than-or-equal predicate
      */
-    public static int gte(final int left, final int right) {
+    /*@ public normal_behavior
+      @   ensures left >= right ==> \result == 1;
+      @   ensures left < right ==> \result == 0;
+      @*/
+    public static /*@ pure @*/ int gte(final int left, final int right) {
         return lt(left, right) ^ 1;
     }
 
@@ -288,7 +351,10 @@ public final class BL {
      * @param right second value
      * @return one-bit signed greater-than-or-equal predicate when subtraction stays in range
      */
-    public static int gteUnsafe(final int left, final int right) {
+    /*@ public normal_behavior
+      @   ensures \result == 0 || \result == 1;
+      @*/
+    public static /*@ pure @*/ int gteUnsafe(final int left, final int right) {
         return ltUnsafe(left, right) ^ 1;
     }
 
@@ -303,7 +369,11 @@ public final class BL {
      * @param right second value
      * @return one-bit signed greater-than-or-equal predicate
      */
-    public static long gte(final long left, final long right) {
+    /*@ public normal_behavior
+      @   ensures left >= right ==> \result == 1L;
+      @   ensures left < right ==> \result == 0L;
+      @*/
+    public static /*@ pure @*/ long gte(final long left, final long right) {
         return lt(left, right) ^ 1L;
     }
 
@@ -314,7 +384,10 @@ public final class BL {
      * @param right second value
      * @return one-bit signed greater-than-or-equal predicate when subtraction stays in range
      */
-    public static long gteUnsafe(final long left, final long right) {
+    /*@ public normal_behavior
+      @   ensures \result == 0L || \result == 1L;
+      @*/
+    public static /*@ pure @*/ long gteUnsafe(final long left, final long right) {
         return ltUnsafe(left, right) ^ 1L;
     }
 
@@ -324,7 +397,11 @@ public final class BL {
      * @param value input value
      * @return one-bit zero predicate
      */
-    public static int isZero(final int value) {
+    /*@ public normal_behavior
+      @   ensures value == 0 ==> \result == 1;
+      @   ensures value != 0 ==> \result == 0;
+      @*/
+    public static /*@ pure @*/ int isZero(final int value) {
         return 1 ^ ((value | -value) >>> 31);
     }
 
@@ -334,7 +411,11 @@ public final class BL {
      * @param value input value
      * @return one-bit zero predicate
      */
-    public static long isZero(final long value) {
+    /*@ public normal_behavior
+      @   ensures value == 0L ==> \result == 1L;
+      @   ensures value != 0L ==> \result == 0L;
+      @*/
+    public static /*@ pure @*/ long isZero(final long value) {
         return 1L ^ ((value | -value) >>> 63);
     }
 
@@ -344,7 +425,11 @@ public final class BL {
      * @param value input value
      * @return one-bit non-zero predicate
      */
-    public static int isNotZero(final int value) {
+    /*@ public normal_behavior
+      @   ensures value != 0 ==> \result == 1;
+      @   ensures value == 0 ==> \result == 0;
+      @*/
+    public static /*@ pure @*/ int isNotZero(final int value) {
         return (value | -value) >>> 31;
     }
 
@@ -354,7 +439,11 @@ public final class BL {
      * @param value input value
      * @return one-bit non-zero predicate
      */
-    public static long isNotZero(final long value) {
+    /*@ public normal_behavior
+      @   ensures value != 0L ==> \result == 1L;
+      @   ensures value == 0L ==> \result == 0L;
+      @*/
+    public static /*@ pure @*/ long isNotZero(final long value) {
         return (value | -value) >>> 63;
     }
 
@@ -368,7 +457,11 @@ public final class BL {
      * @param value input value
      * @return one-bit positive predicate
      */
-    public static int isPositive(final int value) {
+    /*@ public normal_behavior
+      @   ensures value > 0 ==> \result == 1;
+      @   ensures value <= 0 ==> \result == 0;
+      @*/
+    public static /*@ pure @*/ int isPositive(final int value) {
         return isNotZero(value) & (isNegative(value) ^ 1);
     }
 
@@ -382,7 +475,10 @@ public final class BL {
      * @param value input value
      * @return one-bit positive predicate when {@code -value} stays representable
      */
-    public static int isPositiveUnsafe(final int value) {
+    /*@ public normal_behavior
+      @   ensures \result == 0 || \result == 1;
+      @*/
+    public static /*@ pure @*/ int isPositiveUnsafe(final int value) {
         return (-value >>> 31) & 1;
     }
 
@@ -396,7 +492,11 @@ public final class BL {
      * @param value input value
      * @return one-bit positive predicate
      */
-    public static long isPositive(final long value) {
+    /*@ public normal_behavior
+      @   ensures value > 0L ==> \result == 1L;
+      @   ensures value <= 0L ==> \result == 0L;
+      @*/
+    public static /*@ pure @*/ long isPositive(final long value) {
         return isNotZero(value) & (isNegative(value) ^ 1L);
     }
 
@@ -410,7 +510,10 @@ public final class BL {
      * @param value input value
      * @return one-bit positive predicate when {@code -value} stays representable
      */
-    public static long isPositiveUnsafe(final long value) {
+    /*@ public normal_behavior
+      @   ensures \result == 0L || \result == 1L;
+      @*/
+    public static /*@ pure @*/ long isPositiveUnsafe(final long value) {
         return (-value >>> 63) & 1L;
     }
 
@@ -420,7 +523,11 @@ public final class BL {
      * @param value input value
      * @return one-bit negative predicate
      */
-    public static int isNegative(final int value) {
+    /*@ public normal_behavior
+      @   ensures value < 0 ==> \result == 1;
+      @   ensures value >= 0 ==> \result == 0;
+      @*/
+    public static /*@ pure @*/ int isNegative(final int value) {
         return (value >>> 31) & 1;
     }
 
@@ -430,7 +537,11 @@ public final class BL {
      * @param value input value
      * @return one-bit negative predicate
      */
-    public static long isNegative(final long value) {
+    /*@ public normal_behavior
+      @   ensures value < 0L ==> \result == 1L;
+      @   ensures value >= 0L ==> \result == 0L;
+      @*/
+    public static /*@ pure @*/ long isNegative(final long value) {
         return (value >>> 63) & 1L;
     }
 
@@ -440,7 +551,11 @@ public final class BL {
      * @param value input value
      * @return one-bit non-negative predicate
      */
-    public static int isNonNegative(final int value) {
+    /*@ public normal_behavior
+      @   ensures value >= 0 ==> \result == 1;
+      @   ensures value < 0 ==> \result == 0;
+      @*/
+    public static /*@ pure @*/ int isNonNegative(final int value) {
         return isNegative(value) ^ 1;
     }
 
@@ -450,7 +565,11 @@ public final class BL {
      * @param value input value
      * @return one-bit non-negative predicate
      */
-    public static long isNonNegative(final long value) {
+    /*@ public normal_behavior
+      @   ensures value >= 0L ==> \result == 1L;
+      @   ensures value < 0L ==> \result == 0L;
+      @*/
+    public static /*@ pure @*/ long isNonNegative(final long value) {
         return isNegative(value) ^ 1L;
     }
 
@@ -460,7 +579,11 @@ public final class BL {
      * @param value input value
      * @return one-bit even predicate
      */
-    public static int isEven(final int value) {
+    /*@ public normal_behavior
+      @   ensures value % 2 == 0 ==> \result == 1;
+      @   ensures value % 2 != 0 ==> \result == 0;
+      @*/
+    public static /*@ pure @*/ int isEven(final int value) {
         return (value & 1) ^ 1;
     }
 
@@ -470,7 +593,11 @@ public final class BL {
      * @param value input value
      * @return one-bit even predicate
      */
-    public static long isEven(final long value) {
+    /*@ public normal_behavior
+      @   ensures value % 2 == 0 ==> \result == 1L;
+      @   ensures value % 2 != 0 ==> \result == 0L;
+      @*/
+    public static /*@ pure @*/ long isEven(final long value) {
         return (value & 1L) ^ 1L;
     }
 
@@ -480,7 +607,11 @@ public final class BL {
      * @param value input value
      * @return one-bit odd predicate
      */
-    public static int isOdd(final int value) {
+    /*@ public normal_behavior
+      @   ensures value % 2 != 0 ==> \result == 1;
+      @   ensures value % 2 == 0 ==> \result == 0;
+      @*/
+    public static /*@ pure @*/ int isOdd(final int value) {
         return value & 1;
     }
 
@@ -490,7 +621,11 @@ public final class BL {
      * @param value input value
      * @return one-bit odd predicate
      */
-    public static long isOdd(final long value) {
+    /*@ public normal_behavior
+      @   ensures value % 2 != 0 ==> \result == 1L;
+      @   ensures value % 2 == 0 ==> \result == 0L;
+      @*/
+    public static /*@ pure @*/ long isOdd(final long value) {
         return value & 1L;
     }
 
@@ -501,7 +636,10 @@ public final class BL {
      * @param value input value
      * @return one-bit power-of-two-or-zero predicate
      */
-    public static int isPowerOfTwoOrZero(final int value) {
+    /*@ public normal_behavior
+      @   ensures \result == 0 || \result == 1;
+      @*/
+    public static /*@ pure @*/ int isPowerOfTwoOrZero(final int value) {
         return isNonNegative(value) & equal(value & (value - 1), 0);
     }
 
@@ -512,7 +650,10 @@ public final class BL {
      * @param value input value
      * @return one-bit power-of-two-or-zero predicate
      */
-    public static long isPowerOfTwoOrZero(final long value) {
+    /*@ public normal_behavior
+      @   ensures \result == 0L || \result == 1L;
+      @*/
+    public static /*@ pure @*/ long isPowerOfTwoOrZero(final long value) {
         return isNonNegative(value) & equal(value & (value - 1), 0L);
     }
 
@@ -523,7 +664,10 @@ public final class BL {
      * @param value input value
      * @return one-bit strict power-of-two predicate
      */
-    public static int isPowerOfTwo(final int value) {
+    /*@ public normal_behavior
+      @   ensures \result == 0 || \result == 1;
+      @*/
+    public static /*@ pure @*/ int isPowerOfTwo(final int value) {
         return isNotZero(value) & isPowerOfTwoOrZero(value);
     }
 
@@ -534,7 +678,10 @@ public final class BL {
      * @param value input value
      * @return one-bit strict power-of-two predicate
      */
-    public static long isPowerOfTwo(final long value) {
+    /*@ public normal_behavior
+      @   ensures \result == 0L || \result == 1L;
+      @*/
+    public static /*@ pure @*/ long isPowerOfTwo(final long value) {
         return isNotZero(value) & isPowerOfTwoOrZero(value);
     }
 
@@ -551,7 +698,11 @@ public final class BL {
      * @implNote Remainder instructions are usually harder to vectorize than bitwise kernels. Use a
      *     power-of-two divisor and masking when the divisor domain allows it.
      */
-    public static int isDivisibleBy(final int dividend, final int divisor) {
+    /*@ public normal_behavior
+      @   ensures \result == 0 || \result == 1;
+      @   ensures divisor == 0 ==> \result == 0;
+      @*/
+    public static /*@ pure @*/ int isDivisibleBy(final int dividend, final int divisor) {
         final int divisorPresent = isNotZero(divisor);
         final int safeDivisor = divisor | (divisorPresent ^ 1);
         return divisorPresent & isZero(dividend % safeDivisor);
@@ -570,7 +721,11 @@ public final class BL {
      * @implNote Remainder instructions are usually harder to vectorize than bitwise kernels. Use a
      *     power-of-two divisor and masking when the divisor domain allows it.
      */
-    public static long isDivisibleBy(final long dividend, final long divisor) {
+    /*@ public normal_behavior
+      @   ensures \result == 0L || \result == 1L;
+      @   ensures divisor == 0L ==> \result == 0L;
+      @*/
+    public static /*@ pure @*/ long isDivisibleBy(final long dividend, final long divisor) {
         final long divisorPresent = isNotZero(divisor);
         final long safeDivisor = divisor | (divisorPresent ^ 1L);
         return divisorPresent & isZero(dividend % safeDivisor);
@@ -584,7 +739,11 @@ public final class BL {
      * @param whenFalse selected result otherwise
      * @return selected branch value without control-flow branching
      */
-    public static int select(final int predicateBit, final int whenTrue, final int whenFalse) {
+    /*@ public normal_behavior
+      @   ensures predicateBit == 1 ==> \result == whenTrue;
+      @   ensures predicateBit != 1 ==> \result == whenFalse;
+      @*/
+    public static /*@ pure @*/ int select(final int predicateBit, final int whenTrue, final int whenFalse) {
         return equalRetX(predicateBit, 1, whenTrue, whenFalse);
     }
 
@@ -596,7 +755,11 @@ public final class BL {
      * @param whenFalse selected result otherwise
      * @return selected branch value without control-flow branching
      */
-    public static long select(final long predicateBit, final long whenTrue, final long whenFalse) {
+    /*@ public normal_behavior
+      @   ensures predicateBit == 1L ==> \result == whenTrue;
+      @   ensures predicateBit != 1L ==> \result == whenFalse;
+      @*/
+    public static /*@ pure @*/ long select(final long predicateBit, final long whenTrue, final long whenFalse) {
         return equalRetX(predicateBit, 1L, whenTrue, whenFalse);
     }
 
@@ -609,7 +772,11 @@ public final class BL {
      * @param whenNotEqual selected result otherwise
      * @return selected branch value without control-flow branching
      */
-    public static int equalRetX(final int left, final int right, final int whenEqual, final int whenNotEqual) {
+    /*@ public normal_behavior
+      @   ensures left == right ==> \result == whenEqual;
+      @   ensures left != right ==> \result == whenNotEqual;
+      @*/
+    public static /*@ pure @*/ int equalRetX(final int left, final int right, final int whenEqual, final int whenNotEqual) {
         final int mask = equalMask(left, right);
         return whenNotEqual ^ ((whenEqual ^ whenNotEqual) & mask);
     }
@@ -623,7 +790,11 @@ public final class BL {
      * @param whenNotEqual selected result otherwise
      * @return selected branch value without control-flow branching
      */
-    public static long equalRetX(final long left, final long right, final long whenEqual, final long whenNotEqual) {
+    /*@ public normal_behavior
+      @   ensures left == right ==> \result == whenEqual;
+      @   ensures left != right ==> \result == whenNotEqual;
+      @*/
+    public static /*@ pure @*/ long equalRetX(final long left, final long right, final long whenEqual, final long whenNotEqual) {
         final long mask = equalMask(left, right);
         return whenNotEqual ^ ((whenEqual ^ whenNotEqual) & mask);
     }
@@ -641,7 +812,16 @@ public final class BL {
      * @param right second candidate
      * @return signed maximum without overflow-sensitive comparisons
      */
-    public static int max(final int left, final int right) {
+    /*@ public normal_behavior
+      @ {|
+      @   requires left <= right;
+      @   ensures \result == right;
+      @ also
+      @   requires right <= left;
+      @   ensures \result == left;
+      @ |}
+      @*/
+    public static /*@ pure @*/ int max(final int left, final int right) {
         final int mask = lessThanMask(left, right);
         return left ^ ((left ^ right) & mask);
     }
@@ -659,7 +839,16 @@ public final class BL {
      * @param right second candidate
      * @return signed maximum
      */
-    public static int maxJDK(final int left, final int right) {
+    /*@ public normal_behavior
+      @ {|
+      @   requires left <= right;
+      @   ensures \result == right;
+      @ also
+      @   requires right <= left;
+      @   ensures \result == left;
+      @ |}
+      @*/
+    public static /*@ pure @*/ int maxJDK(final int left, final int right) {
         return Math.max(left, right);
     }
 
@@ -673,7 +862,10 @@ public final class BL {
      * @param right second candidate
      * @return signed maximum when subtraction stays in range
      */
-    public static int maxUnsafe(final int left, final int right) {
+    /*@ public normal_behavior
+      @   ensures \result == left || \result == right;
+      @*/
+    public static /*@ pure @*/ int maxUnsafe(final int left, final int right) {
         final int mask = subtractLessThanMaskUnsafe(left, right);
         return left ^ ((left ^ right) & mask);
     }
@@ -690,7 +882,16 @@ public final class BL {
      * @param right second candidate
      * @return signed maximum without overflow-sensitive comparisons
      */
-    public static long max(final long left, final long right) {
+    /*@ public normal_behavior
+      @ {|
+      @   requires left <= right;
+      @   ensures \result == right;
+      @ also
+      @   requires right <= left;
+      @   ensures \result == left;
+      @ |}
+      @*/
+    public static /*@ pure @*/ long max(final long left, final long right) {
         final long mask = lessThanMask(left, right);
         return left ^ ((left ^ right) & mask);
     }
@@ -707,7 +908,16 @@ public final class BL {
      * @param right second candidate
      * @return signed maximum
      */
-    public static long maxJDK(final long left, final long right) {
+    /*@ public normal_behavior
+      @ {|
+      @   requires left <= right;
+      @   ensures \result == right;
+      @ also
+      @   requires right <= left;
+      @   ensures \result == left;
+      @ |}
+      @*/
+    public static /*@ pure @*/ long maxJDK(final long left, final long right) {
         return Math.max(left, right);
     }
 
@@ -721,7 +931,10 @@ public final class BL {
      * @param right second candidate
      * @return signed maximum when subtraction stays in range
      */
-    public static long maxUnsafe(final long left, final long right) {
+    /*@ public normal_behavior
+      @   ensures \result == left || \result == right;
+      @*/
+    public static /*@ pure @*/ long maxUnsafe(final long left, final long right) {
         final long mask = subtractLessThanMaskUnsafe(left, right);
         return left ^ ((left ^ right) & mask);
     }
@@ -738,7 +951,16 @@ public final class BL {
      * @param right second candidate
      * @return signed minimum without overflow-sensitive comparisons
      */
-    public static int min(final int left, final int right) {
+    /*@ public normal_behavior
+      @ {|
+      @   requires left <= right;
+      @   ensures \result == left;
+      @ also
+      @   requires right <= left;
+      @   ensures \result == right;
+      @ |}
+      @*/
+    public static /*@ pure @*/ int min(final int left, final int right) {
         final int mask = lessThanMask(left, right);
         return right ^ ((left ^ right) & mask);
     }
@@ -755,7 +977,16 @@ public final class BL {
      * @param right second candidate
      * @return signed minimum
      */
-    public static int minJDK(final int left, final int right) {
+    /*@ public normal_behavior
+      @ {|
+      @   requires left <= right;
+      @   ensures \result == left;
+      @ also
+      @   requires right <= left;
+      @   ensures \result == right;
+      @ |}
+      @*/
+    public static /*@ pure @*/ int minJDK(final int left, final int right) {
         return Math.min(left, right);
     }
 
@@ -769,7 +1000,10 @@ public final class BL {
      * @param right second candidate
      * @return signed minimum when subtraction stays in range
      */
-    public static int minUnsafe(final int left, final int right) {
+    /*@ public normal_behavior
+      @   ensures \result == left || \result == right;
+      @*/
+    public static /*@ pure @*/ int minUnsafe(final int left, final int right) {
         final int mask = subtractLessThanMaskUnsafe(left, right);
         return right ^ ((left ^ right) & mask);
     }
@@ -786,7 +1020,16 @@ public final class BL {
      * @param right second candidate
      * @return signed minimum without overflow-sensitive comparisons
      */
-    public static long min(final long left, final long right) {
+    /*@ public normal_behavior
+      @ {|
+      @   requires left <= right;
+      @   ensures \result == left;
+      @ also
+      @   requires right <= left;
+      @   ensures \result == right;
+      @ |}
+      @*/
+    public static /*@ pure @*/ long min(final long left, final long right) {
         final long mask = lessThanMask(left, right);
         return right ^ ((left ^ right) & mask);
     }
@@ -803,7 +1046,16 @@ public final class BL {
      * @param right second candidate
      * @return signed minimum
      */
-    public static long minJDK(final long left, final long right) {
+    /*@ public normal_behavior
+      @ {|
+      @   requires left <= right;
+      @   ensures \result == left;
+      @ also
+      @   requires right <= left;
+      @   ensures \result == right;
+      @ |}
+      @*/
+    public static /*@ pure @*/ long minJDK(final long left, final long right) {
         return Math.min(left, right);
     }
 
@@ -817,7 +1069,10 @@ public final class BL {
      * @param right second candidate
      * @return signed minimum when subtraction stays in range
      */
-    public static long minUnsafe(final long left, final long right) {
+    /*@ public normal_behavior
+      @   ensures \result == left || \result == right;
+      @*/
+    public static /*@ pure @*/ long minUnsafe(final long left, final long right) {
         final long mask = subtractLessThanMaskUnsafe(left, right);
         return right ^ ((left ^ right) & mask);
     }
@@ -840,7 +1095,14 @@ public final class BL {
      * @param upperBound inclusive upper bound
      * @return {@code value} clamped to the inclusive range
      */
-    public static int clamp(final int value, final int lowerBound, final int upperBound) {
+    /*@ public normal_behavior
+      @   requires lowerBound <= upperBound;
+      @   ensures \result >= lowerBound && \result <= upperBound;
+      @   ensures value >= lowerBound && value <= upperBound ==> \result == value;
+      @   ensures value < lowerBound ==> \result == lowerBound;
+      @   ensures value > upperBound ==> \result == upperBound;
+      @*/
+    public static /*@ pure @*/ int clamp(final int value, final int lowerBound, final int upperBound) {
         return min(max(value, lowerBound), upperBound);
     }
 
@@ -861,7 +1123,14 @@ public final class BL {
      * @param upperBound inclusive upper bound
      * @return {@code value} clamped to the inclusive range
      */
-    public static int clampJDK(final int value, final int lowerBound, final int upperBound) {
+    /*@ public normal_behavior
+      @   requires lowerBound <= upperBound;
+      @   ensures \result >= lowerBound && \result <= upperBound;
+      @   ensures value >= lowerBound && value <= upperBound ==> \result == value;
+      @   ensures value < lowerBound ==> \result == lowerBound;
+      @   ensures value > upperBound ==> \result == upperBound;
+      @*/
+    public static /*@ pure @*/ int clampJDK(final int value, final int lowerBound, final int upperBound) {
         return Math.min(Math.max(value, lowerBound), upperBound);
     }
 
@@ -881,7 +1150,11 @@ public final class BL {
      * @param upperBound inclusive upper bound
      * @return clamped result when the subtraction preconditions hold
      */
-    public static int clampUnsafe(final int value, final int lowerBound, final int upperBound) {
+    /*@ public normal_behavior
+      @   requires lowerBound <= upperBound;
+      @   ensures \result == value || \result == lowerBound || \result == upperBound;
+      @*/
+    public static /*@ pure @*/ int clampUnsafe(final int value, final int lowerBound, final int upperBound) {
         return minUnsafe(maxUnsafe(value, lowerBound), upperBound);
     }
 
@@ -903,7 +1176,14 @@ public final class BL {
      * @param upperBound inclusive upper bound
      * @return {@code value} clamped to the inclusive range
      */
-    public static long clamp(final long value, final long lowerBound, final long upperBound) {
+    /*@ public normal_behavior
+      @   requires lowerBound <= upperBound;
+      @   ensures \result >= lowerBound && \result <= upperBound;
+      @   ensures value >= lowerBound && value <= upperBound ==> \result == value;
+      @   ensures value < lowerBound ==> \result == lowerBound;
+      @   ensures value > upperBound ==> \result == upperBound;
+      @*/
+    public static /*@ pure @*/ long clamp(final long value, final long lowerBound, final long upperBound) {
         return min(max(value, lowerBound), upperBound);
     }
 
@@ -924,7 +1204,14 @@ public final class BL {
      * @param upperBound inclusive upper bound
      * @return {@code value} clamped to the inclusive range
      */
-    public static long clampJDK(final long value, final long lowerBound, final long upperBound) {
+    /*@ public normal_behavior
+      @   requires lowerBound <= upperBound;
+      @   ensures \result >= lowerBound && \result <= upperBound;
+      @   ensures value >= lowerBound && value <= upperBound ==> \result == value;
+      @   ensures value < lowerBound ==> \result == lowerBound;
+      @   ensures value > upperBound ==> \result == upperBound;
+      @*/
+    public static /*@ pure @*/ long clampJDK(final long value, final long lowerBound, final long upperBound) {
         return Math.min(Math.max(value, lowerBound), upperBound);
     }
 
@@ -944,7 +1231,11 @@ public final class BL {
      * @param upperBound inclusive upper bound
      * @return clamped result when the subtraction preconditions hold
      */
-    public static long clampUnsafe(final long value, final long lowerBound, final long upperBound) {
+    /*@ public normal_behavior
+      @   requires lowerBound <= upperBound;
+      @   ensures \result == value || \result == lowerBound || \result == upperBound;
+      @*/
+    public static /*@ pure @*/ long clampUnsafe(final long value, final long lowerBound, final long upperBound) {
         return minUnsafe(maxUnsafe(value, lowerBound), upperBound);
     }
 
@@ -963,7 +1254,10 @@ public final class BL {
      * @param value source value
      * @return JDK-style wrapped-width absolute value
      */
-    public static int absJDK(final int value) {
+    /*@ public normal_behavior
+      @   ensures \result == ( 0 <= value ? value : value == Integer.MIN_VALUE ? Integer.MIN_VALUE : -value);
+      @*/
+    public static /*@ pure @*/ int absJDK(final int value) {
         return Math.abs(value);
     }
 
@@ -982,7 +1276,10 @@ public final class BL {
      * @param value source value
      * @return JDK-style wrapped-width absolute value
      */
-    public static long absJDK(final long value) {
+    /*@ public normal_behavior
+      @   ensures \result == ( 0 <= value ? value : value == Long.MIN_VALUE ? Long.MIN_VALUE : -value);
+      @*/
+    public static /*@ pure @*/ long absJDK(final long value) {
         return Math.abs(value);
     }
 
@@ -997,7 +1294,10 @@ public final class BL {
      * @param value source value
      * @return wrapped-width absolute value using the legacy bit kernel
      */
-    public static int absUnsafe(final int value) {
+    /*@ public normal_behavior
+      @   ensures \result == ( 0 <= value ? value : value == Integer.MIN_VALUE ? Integer.MIN_VALUE : -value);
+      @*/
+    public static /*@ pure @*/ int absUnsafe(final int value) {
         final int signMask = value >> 31;
         return (value + signMask) ^ signMask;
     }
@@ -1013,7 +1313,10 @@ public final class BL {
      * @param value source value
      * @return wrapped-width absolute value using the legacy bit kernel
      */
-    public static long absUnsafe(final long value) {
+    /*@ public normal_behavior
+      @   ensures \result == ( 0 <= value ? value : value == Long.MIN_VALUE ? Long.MIN_VALUE : -value);
+      @*/
+    public static /*@ pure @*/ long absUnsafe(final long value) {
         final long signMask = value >> 63;
         return (value + signMask) ^ signMask;
     }
@@ -1029,8 +1332,11 @@ public final class BL {
      * @param value source value
      * @return wrapped-width magnitude with an overflow mask suitable for branchless repair
      */
+    /*@ public normal_behavior
+      @   ensures \result != null;
+      @*/
     @CheckReturnValue
-    public static IntWithOverflowMask absWithOverflowMask(final int value) {
+    public static /*@ pure @*/ IntWithOverflowMask absWithOverflowMask(final int value) {
         return new IntWithOverflowMask(absUnsafe(value), equalMask(value, Integer.MIN_VALUE));
     }
 
@@ -1045,8 +1351,11 @@ public final class BL {
      * @param value source value
      * @return wrapped-width magnitude with an overflow mask suitable for branchless repair
      */
+    /*@ public normal_behavior
+      @   ensures \result != null;
+      @*/
     @CheckReturnValue
-    public static LongWithOverflowMask absWithOverflowMask(final long value) {
+    public static /*@ pure @*/ LongWithOverflowMask absWithOverflowMask(final long value) {
         return new LongWithOverflowMask(absUnsafe(value), equalMask(value, Long.MIN_VALUE));
     }
 
@@ -1059,7 +1368,11 @@ public final class BL {
      * @param value source value
      * @return {@code abs(value)} when representable; otherwise {@code Integer.MAX_VALUE}
      */
-    public static int absSaturating(final int value) {
+    /*@ public normal_behavior
+      @   ensures \result == ( 0 <= value ? value : value == Integer.MIN_VALUE ? Integer.MAX_VALUE : -value);
+      @*/
+    /*@ skipesc @*/
+    public static /*@ pure @*/ int absSaturating(final int value) {
         final IntWithOverflowMask result = absWithOverflowMask(value);
         return (result.value() & ~result.overflowMask()) | (Integer.MAX_VALUE & result.overflowMask());
     }
@@ -1073,7 +1386,11 @@ public final class BL {
      * @param value source value
      * @return {@code abs(value)} when representable; otherwise {@code Long.MAX_VALUE}
      */
-    public static long absSaturating(final long value) {
+    /*@ public normal_behavior
+      @   ensures \result == ( 0 <= value ? value : value == Long.MIN_VALUE ? Long.MAX_VALUE : -value);
+      @*/
+    /*@ skipesc @*/
+    public static /*@ pure @*/ long absSaturating(final long value) {
         final LongWithOverflowMask result = absWithOverflowMask(value);
         return (result.value() & ~result.overflowMask()) | (Long.MAX_VALUE & result.overflowMask());
     }
@@ -1095,7 +1412,10 @@ public final class BL {
      * @param right second value
      * @return JDK-style wrapped-width absolute difference
      */
-    public static int absDiffJDK(final int left, final int right) {
+    /*@ public normal_behavior
+      @   ensures \result == Math.abs(left - right);
+      @*/
+    public static /*@ pure @*/ int absDiffJDK(final int left, final int right) {
         return Math.abs(left - right);
     }
 
@@ -1116,7 +1436,10 @@ public final class BL {
      * @param right second value
      * @return JDK-style wrapped-width absolute difference
      */
-    public static long absDiffJDK(final long left, final long right) {
+    /*@ public normal_behavior
+      @   ensures \result == Math.abs(left - right);
+      @*/
+    public static /*@ pure @*/ long absDiffJDK(final long left, final long right) {
         return Math.abs(left - right);
     }
 
@@ -1132,7 +1455,10 @@ public final class BL {
      * @param right second value
      * @return wrapped-width absolute difference using the legacy bit kernel
      */
-    public static int absDiffUnsafe(final int left, final int right) {
+    /*@ public normal_behavior
+      @   ensures \result == Math.abs(left - right);
+      @*/
+    public static /*@ pure @*/ int absDiffUnsafe(final int left, final int right) {
         final int difference = left - right;
         final int signMask = difference >> 31;
         return (difference ^ signMask) - signMask;
@@ -1150,7 +1476,10 @@ public final class BL {
      * @param right second value
      * @return wrapped-width absolute difference using the legacy bit kernel
      */
-    public static long absDiffUnsafe(final long left, final long right) {
+    /*@ public normal_behavior
+      @   ensures \result == Math.abs(left - right);
+      @*/
+    public static /*@ pure @*/ long absDiffUnsafe(final long left, final long right) {
         final long difference = left - right;
         final long signMask = difference >> 63;
         return (difference ^ signMask) - signMask;
@@ -1168,8 +1497,11 @@ public final class BL {
      * @param right second value
      * @return wrapped-width absolute difference with overflow signaling
      */
+    /*@ public normal_behavior
+      @   ensures \result != null;
+      @*/
     @CheckReturnValue
-    public static IntWithOverflowMask absDiffWithOverflowMask(final int left, final int right) {
+    public static /*@ pure @*/ IntWithOverflowMask absDiffWithOverflowMask(final int left, final int right) {
         // Reorder first so the mathematical difference is non-negative. Any negative wrapped result
         // after subtraction therefore signals overflow and can be propagated as a full-width mask.
         final int larger = max(left, right);
@@ -1190,8 +1522,11 @@ public final class BL {
      * @param right second value
      * @return wrapped-width absolute difference with overflow signaling
      */
+    /*@ public normal_behavior
+      @   ensures \result != null;
+      @*/
     @CheckReturnValue
-    public static LongWithOverflowMask absDiffWithOverflowMask(final long left, final long right) {
+    public static /*@ pure @*/ LongWithOverflowMask absDiffWithOverflowMask(final long left, final long right) {
         final long larger = max(left, right);
         final long smaller = min(left, right);
         final long difference = larger - smaller;
@@ -1208,7 +1543,11 @@ public final class BL {
      * @param right second value
      * @return {@code |left - right|} when representable; otherwise {@code Integer.MAX_VALUE}
      */
-    public static int absDiffSaturating(final int left, final int right) {
+    /*@ public normal_behavior
+      @   ensures \result >= 0;
+      @*/
+    /*@ skipesc @*/
+    public static /*@ pure @*/ int absDiffSaturating(final int left, final int right) {
         final IntWithOverflowMask result = absDiffWithOverflowMask(left, right);
         return (result.value() & ~result.overflowMask()) | (Integer.MAX_VALUE & result.overflowMask());
     }
@@ -1223,7 +1562,11 @@ public final class BL {
      * @param right second value
      * @return {@code |left - right|} when representable; otherwise {@code Long.MAX_VALUE}
      */
-    public static long absDiffSaturating(final long left, final long right) {
+    /*@ public normal_behavior
+      @   ensures \result >= 0;
+      @*/
+    /*@ skipesc @*/
+    public static /*@ pure @*/ long absDiffSaturating(final long left, final long right) {
         final LongWithOverflowMask result = absDiffWithOverflowMask(left, right);
         return (result.value() & ~result.overflowMask()) | (Long.MAX_VALUE & result.overflowMask());
     }
@@ -1235,7 +1578,11 @@ public final class BL {
      * @param right second value
      * @return {@code -1} for true and {@code 0} for false
      */
-    private static int lessThanMask(final int left, final int right) {
+    /*@ private normal_behavior
+      @   ensures left < right ==> \result == -1;
+      @   ensures left >= right ==> \result == 0;
+      @*/
+    private static /*@ pure @*/ int lessThanMask(final int left, final int right) {
         final int leftSignMask = left >> 31;
         final int rightSignMask = right >> 31;
         final int differentSignMask = leftSignMask ^ rightSignMask;
@@ -1253,7 +1600,10 @@ public final class BL {
      * @param right second value
      * @return {@code -1} for true and {@code 0} for false when subtraction stays in range
      */
-    private static int subtractLessThanMaskUnsafe(final int left, final int right) {
+    /*@ private normal_behavior
+      @   ensures \result == 0 || \result == -1;
+      @*/
+    private static /*@ pure @*/ int subtractLessThanMaskUnsafe(final int left, final int right) {
         return (left - right) >> 31;
     }
 
@@ -1264,7 +1614,11 @@ public final class BL {
      * @param right second value
      * @return {@code -1} for true and {@code 0} for false
      */
-    private static long lessThanMask(final long left, final long right) {
+    /*@ private normal_behavior
+      @   ensures left < right ==> \result == -1L;
+      @   ensures left >= right ==> \result == 0L;
+      @*/
+    private static /*@ pure @*/ long lessThanMask(final long left, final long right) {
         final long leftSignMask = left >> 63;
         final long rightSignMask = right >> 63;
         final long differentSignMask = leftSignMask ^ rightSignMask;
@@ -1282,7 +1636,10 @@ public final class BL {
      * @param right second value
      * @return {@code -1} for true and {@code 0} for false when subtraction stays in range
      */
-    private static long subtractLessThanMaskUnsafe(final long left, final long right) {
+    /*@ private normal_behavior
+      @   ensures \result == 0L || \result == -1L;
+      @*/
+    private static /*@ pure @*/ long subtractLessThanMaskUnsafe(final long left, final long right) {
         return (left - right) >> 63;
     }
 
@@ -1293,7 +1650,11 @@ public final class BL {
      * @param right second value
      * @return {@code -1} for equality and {@code 0} otherwise
      */
-    private static int equalMask(final int left, final int right) {
+    /*@ private normal_behavior
+      @   ensures left == right ==> \result == -1;
+      @   ensures left != right ==> \result == 0;
+      @*/
+    private static /*@ pure @*/ int equalMask(final int left, final int right) {
         return -equal(left, right);
     }
 
@@ -1304,7 +1665,11 @@ public final class BL {
      * @param right second value
      * @return {@code -1} for equality and {@code 0} otherwise
      */
-    private static long equalMask(final long left, final long right) {
+    /*@ private normal_behavior
+      @   ensures left == right ==> \result == -1L;
+      @   ensures left != right ==> \result == 0L;
+      @*/
+    private static /*@ pure @*/ long equalMask(final long left, final long right) {
         return -equal(left, right);
     }
 }
