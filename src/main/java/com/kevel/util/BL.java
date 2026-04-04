@@ -821,8 +821,7 @@ public final class BL {
       @   ensures left != right ==> \result == whenNotEqual;
       @ pure
       @*/
-    public static int equalRetX(
-            final int left, final int right, final int whenEqual, final int whenNotEqual) {
+    public static int equalRetX(final int left, final int right, final int whenEqual, final int whenNotEqual) {
         final int mask = equalMask(left, right);
         return whenNotEqual ^ ((whenEqual ^ whenNotEqual) & mask);
     }
@@ -841,8 +840,7 @@ public final class BL {
       @   ensures left != right ==> \result == whenNotEqual;
       @ pure
       @*/
-    public static long equalRetX(
-            final long left, final long right, final long whenEqual, final long whenNotEqual) {
+    public static long equalRetX(final long left, final long right, final long whenEqual, final long whenNotEqual) {
         final long mask = equalMask(left, right);
         return whenNotEqual ^ ((whenEqual ^ whenNotEqual) & mask);
     }
