@@ -71,13 +71,27 @@ import java.util.function.Supplier;
  * @param <T> wrapped runtime value type
  */
 public final class Box<Tag, T> implements Supplier<T> {
-    private static final Object DEFAULT_WITNESS = new Object();
-    private static final Box<?, ?> EMPTY = new Box(null, DEFAULT_WITNESS);
+    private /*@ spec_public @*/ static final Object DEFAULT_WITNESS = new Object();
+    private /*@ spec_public @*/ static final Box<?, ?> EMPTY = new Box(null, DEFAULT_WITNESS);
 
-    private final T value;
-    private final Object witness;
+    private /*@ spec_public nullable @*/ final T value;
+    private /*@ spec_public @*/ final Object witness;
 
-    private Box(T value, Object witness) {
+    /*@ public invariant witness != null; @*/
+
+    /*-RAC@ private represents valuex = value; @*/
+    /*-RAC@ private represents theHashCode = (value == null ? 0 : value.theHashCode); @*/
+
+    /*@ public static invariant EMPTY != null; @*/
+    /*@ public static invariant EMPTY.value == null; @*/
+    /*@ public static invariant EMPTY.witness == DEFAULT_WITNESS; @*/
+
+    /*@ private normal_behavior
+      @   ensures this.value == value;
+      @   ensures this.witness == witness;
+      @*/
+    /*@ pure helper @*/
+    private Box(/*@ nullable @*/ T value, Object witness) {
         this.value = value;
         this.witness = witness;
     }
@@ -99,6 +113,18 @@ public final class Box<Tag, T> implements Supplier<T> {
      * @return a new non-empty box containing {@code value}
      * @throws NullPointerException if {@code value} is null
      */
+    /*@ public normal_behavior
+      @   requires value != null;
+      @   ensures \result != null;
+      @   ensures \result.value == value;
+      @   ensures \result.witness == DEFAULT_WITNESS;
+      @ also
+      @ public exceptional_behavior
+      @   requires value == null;
+      @   assignable \nothing;
+      @   signals_only NullPointerException;
+      @*/
+    /*@ pure @*/
     @CheckReturnValue // must-use
     public static <Tag, T> Box<Tag, T> of(T value) {
         Objects.requireNonNull(value, "Box value cannot be null. Use Box.empty() if you want an empty box");
@@ -123,6 +149,19 @@ public final class Box<Tag, T> implements Supplier<T> {
      * @return a new non-empty box containing {@code value} and {@code witness}
      * @throws NullPointerException if {@code value} or {@code witness} is null
      */
+    /*@ public normal_behavior
+      @   requires value != null;
+      @   requires witness != null;
+      @   ensures \result != null;
+      @   ensures \result.value == value;
+      @   ensures \result.witness == witness;
+      @ also
+      @ public exceptional_behavior
+      @   requires value == null || witness == null;
+      @   assignable \nothing;
+      @   signals_only NullPointerException;
+      @*/
+    /*@ pure @*/
     @CheckReturnValue // must-use
     public static <Tag, T> Box<Tag, T> of(T value, Object witness) {
         Objects.requireNonNull(value, "Box value cannot be null. Use Box.empty() if you want an empty box");
@@ -140,8 +179,13 @@ public final class Box<Tag, T> implements Supplier<T> {
      *
      * @return the wrapped value, or {@code null} only for an empty box
      */
+    /*@ also
+      @ public normal_behavior
+      @   ensures \result == value;
+      @*/
+    /*@ pure helper @*/
     @Override
-    public T get() {
+    public /*@ nullable @*/ T get() {
         return value;
     }
 
@@ -154,6 +198,11 @@ public final class Box<Tag, T> implements Supplier<T> {
      * @param other fallback value used only when this box is empty
      * @return the wrapped value or {@code other}
      */
+    /*@ public normal_behavior
+      @   ensures value != null ==> \result == value;
+      @   ensures value == null ==> \result == other;
+      @*/
+    /*@ pure @*/
     public T or(T other) {
         return value == null ? other : value;
     }
@@ -170,6 +219,10 @@ public final class Box<Tag, T> implements Supplier<T> {
      * @param expected witness token to compare by identity
      * @return {@code true} when {@code expected} is the stored witness object
      */
+    /*@ public normal_behavior
+      @   ensures \result <==> (witness == expected);
+      @*/
+    /*@ pure @*/
     public boolean hasWitness(Object expected) {
         return witness == expected;
     }
@@ -195,9 +248,26 @@ public final class Box<Tag, T> implements Supplier<T> {
      * @throws NullPointerException if {@code other} is null
      * @throws IllegalStateException if either box is empty
      */
+    /*@ public behavior
+      @   requires other != null;
+      @   requires other.value != null;
+      @   requires value != null;
+      @   ensures \result == -Integer.signum(other.value.compareTo(value));
+      @ also
+      @ public exceptional_behavior
+      @   requires other == null;
+      @   assignable \nothing;
+      @   signals_only NullPointerException;
+      @ also
+      @ public exceptional_behavior
+      @   requires other != null && (other.value == null || value == null);
+      @   assignable \nothing;
+      @   signals_only IllegalStateException;
+      @*/
     public <X, R extends Comparable<T>> int compareValue(Box<X, R> other) {
         Box<X, R> checkedOther = requireComparableOther(other, "compareTo");
         requirePresent(value, "compareTo requires a non-empty receiver. This Box had a value of 'null'.");
+        /*@ assume \typeof(value) <:= \typeof(checkedOther.value); @*/
         return -Integer.signum(checkedOther.value.compareTo(value));
     }
 
@@ -216,9 +286,26 @@ public final class Box<Tag, T> implements Supplier<T> {
      * @throws NullPointerException if {@code other} is null
      * @throws IllegalStateException if either box is empty
      */
+    /*@ public behavior
+      @   requires other != null;
+      @   requires other.value != null;
+      @   requires value != null;
+      @   ensures \result == -Integer.signum(other.value.compareTo(value));
+      @ also
+      @ public exceptional_behavior
+      @   requires other == null;
+      @   assignable \nothing;
+      @   signals_only NullPointerException;
+      @ also
+      @ public exceptional_behavior
+      @   requires other != null && (other.value == null || value == null);
+      @   assignable \nothing;
+      @   signals_only IllegalStateException;
+      @*/
     public <X extends Tag, R extends Comparable<T>> int tcompareValue(Box<X, R> other) {
         Box<X, R> checkedOther = requireComparableOther(other, "tcompareTo");
         requirePresent(value, "tcompareTo requires a non-empty receiver. This Box had a value of 'null'");
+        /*@ assume \typeof(value) <:= \typeof(checkedOther.value); @*/
         return -Integer.signum(checkedOther.value.compareTo(value));
     }
 
@@ -234,6 +321,13 @@ public final class Box<Tag, T> implements Supplier<T> {
      * @param <NewTag> destination compile-time tag
      * @return a new box with the same value and no transferred witness authority
      */
+    /*@ public normal_behavior
+      @   ensures \result != null;
+      @   ensures \result.value == value;
+      @   ensures \result.witness == DEFAULT_WITNESS;
+      @*/
+    /*@ pure @*/
+    /*@ skipesc @*/
     @CheckReturnValue // must-use
     public <NewTag> Box<NewTag, T> into() {
         return new Box<>(value, DEFAULT_WITNESS);
@@ -255,6 +349,19 @@ public final class Box<Tag, T> implements Supplier<T> {
      * @return a new box with the same value and the provided witness
      * @throws NullPointerException if {@code witness} is null
      */
+    /*@ public normal_behavior
+      @   requires witness != null;
+      @   ensures \result != null;
+      @   ensures \result.value == value;
+      @   ensures \result.witness == witness;
+      @ also
+      @ public exceptional_behavior
+      @   requires witness == null;
+      @   assignable \nothing;
+      @   signals_only NullPointerException;
+      @*/
+    /*@ pure @*/
+    /*@ skipesc @*/
     @CheckReturnValue // must-use
     public <NewTag> Box<NewTag, T> into(Object witness) {
         Objects.requireNonNull(witness, "Box witness cannot be null");
@@ -276,6 +383,19 @@ public final class Box<Tag, T> implements Supplier<T> {
      * @return a new box with the same value and preserved witness
      * @throws IllegalStateException if {@code witness} does not match the stored witness by identity
      */
+    /*@ public normal_behavior
+      @   requires witness == this.witness;
+      @   ensures \result != null;
+      @   ensures \result.value == value;
+      @   ensures \result.witness == witness;
+      @ also
+      @ public exceptional_behavior
+      @   requires witness != this.witness;
+      @   assignable \nothing;
+      @   signals_only IllegalStateException;
+      @*/
+    /*@ pure @*/
+    /*@ skipesc @*/
     @CheckReturnValue // must-use
     public <NewTag> Box<NewTag, T> intoOnlyWith(Object witness) {
         if (hasWitness(witness)) {
@@ -294,6 +414,20 @@ public final class Box<Tag, T> implements Supplier<T> {
      * @param other object to compare
      * @return {@code true} when {@code other} is a box with an equal wrapped value
      */
+    /*@ also
+      @ public normal_behavior
+      @   requires this == other;
+      @   ensures \result;
+      @ also
+      @ public normal_behavior
+      @   requires other != null && other instanceof Box;
+      @   ensures \result <==> Objects.equals(value, ((Box)other).value);
+      @ also
+      @ public normal_behavior
+      @   requires other == null || !(other instanceof Box);
+      @   ensures !\result;
+      @*/
+    /*@ pure @*/
     @Override
     public boolean equals(Object other) {
         if (this == other) {
@@ -317,6 +451,16 @@ public final class Box<Tag, T> implements Supplier<T> {
      * @return {@code true} when both wrapped values are equal
      * @throws NullPointerException if {@code other} is null
      */
+    /*@ public normal_behavior
+      @   requires other != null;
+      @   ensures \result <==> Objects.equals(value, other.value);
+      @ also
+      @ public exceptional_behavior
+      @   requires other == null;
+      @   assignable \nothing;
+      @   signals_only NullPointerException;
+      @*/
+    /*@ pure @*/
     public boolean tequals(Box<Tag, T> other) {
         Objects.requireNonNull(other, "tequals requires a non-null other box");
         return Objects.equals(value, other.value);
@@ -331,6 +475,10 @@ public final class Box<Tag, T> implements Supplier<T> {
      *
      * @return wrapped-value hash code
      */
+    /*@ also
+      @ public normal_behavior
+      @   ensures \result == Objects.hashCode(value);
+      @*/
     @Override
     public int hashCode() {
         return Objects.hashCode(value);
@@ -341,6 +489,11 @@ public final class Box<Tag, T> implements Supplier<T> {
      *
      * @return a string in the form {@code Box[value]}
      */
+    /*@ also
+      @ public normal_behavior
+      @   ensures \result != null;
+      @*/
+    /*@ skipesc @*/
     @Override
     public String toString() {
         return "Box[" + value + "]";
@@ -351,18 +504,50 @@ public final class Box<Tag, T> implements Supplier<T> {
      *
      * @return a box whose inner value is null.
      */
+    /*@ public normal_behavior
+      @   ensures \result != null;
+      @   ensures \result.value == null;
+      @*/
+    /*@ pure helper @*/
     @SuppressWarnings("unchecked")
     public static <X, R> Box<X, R> empty() {
+        /*@ assume ((Box<X, R>) EMPTY).value == null; @*/
         return (Box<X, R>) EMPTY;
     }
 
-    private static <T> T requirePresent(T candidate, String message) {
+    /*@ private normal_behavior
+      @   requires candidate != null;
+      @   ensures \result == candidate;
+      @ also
+      @ private exceptional_behavior
+      @   requires candidate == null;
+      @   assignable \nothing;
+      @   signals_only IllegalStateException;
+      @*/
+    /*@ pure @*/
+    private static <T> T requirePresent(/*@ nullable @*/ T candidate, String message) {
         if (candidate == null) {
             throw new IllegalStateException(message);
         }
         return candidate;
     }
 
+    /*@ private normal_behavior
+      @   requires other != null;
+      @   requires other.value != null;
+      @   ensures \result == other;
+      @ also
+      @ private exceptional_behavior
+      @   requires other == null;
+      @   assignable \nothing;
+      @   signals_only NullPointerException;
+      @ also
+      @ private exceptional_behavior
+      @   requires other != null && other.value == null;
+      @   assignable \nothing;
+      @   signals_only IllegalStateException;
+      @*/
+    /*@ pure @*/
     private static <X, T, R extends Comparable<T>> Box<X, R> requireComparableOther(
             Box<X, R> other, String methodName) {
         Objects.requireNonNull(other, methodName + " requires a non-null other box");
