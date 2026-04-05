@@ -14,6 +14,7 @@ adopt_openjdk_version_dir =jdk-21.0.7+6
 adopt_openjdk_baseurl =https://github.com/adoptium/temurin21-binaries/releases/download
 openjml_url =https://github.com/OpenJML/OpenJML/releases/download/21-0.23
 alloy_url =https://github.com/AlloyTools/org.alloytools.alloy/releases/download/v6.2.0
+tla_url =https://github.com/tlaplus/tlaplus/releases/download/v1.8.0
 
 # Let's create a 'newline' binding for use in warnings/errors/etc.
 define mknewline
@@ -31,23 +32,27 @@ ifeq ($(shell uname -s),Linux)
 	#clojure_cli_sha =7eb9aa2ecc6c0abfdb1578d4b99ca7c2055111aafa38524a12a6fb76fe01f30b
 	#clj_check_sha =echo "$(clojure_cli_sha) clojure-linux-install.sh" | sha256sum -c -
 	openjml_version =openjml-ubuntu-22.04-21-0.23.zip
-	alloy_version = alloy-6.2.0-linux-amd64.tar.gz
+	#alloy_version =alloy-6.2.0-linux-amd64.tar.gz
+	alloy_version =org.alloytools.alloy.dist.jar
+	tla_version =tla2tools.jar
 else
 	# Assumes MacOS
 	ifeq ($(shell uname -m),arm64)
 		adopt_openjdk_version_slug =OpenJDK21U-jdk_aarch64_mac_hotspot_21.0.7_6.tar.gz
 		adopt_openjdk_sha =6fcb25f3f71a5ff245dec4ebe8bd5c643f179a5cd0a61c08e58a8c65914d2f97
-		alloy_version =alloy-6.2.0-mac-aarch64.zip
+		#alloy_version =alloy-6.2.0-mac-aarch64.zip
 	else
 		adopt_openjdk_version_slug =OpenJDK21U-jdk_x64_mac_hotspot_21.0.7_6.tar.gz
 		adopt_openjdk_sha =be0ef2ec933970e7f682a109313b9eb2bf5b6fcd0a7d2b2d744867b2c2539a52
-		alloy_version =alloy-6.2.0-mac-amd64.zip
+		#alloy_version =alloy-6.2.0-mac-amd64.zip
 	endif
 	jhome_slug =Contents/Home
 	java_bin_dir =$(jhome_slug)/bin
 	## note extra whitespace necessary for MacOS
 	jdk_check_sha =echo "$(adopt_openjdk_sha)  $(adopt_openjdk_version_slug)" | shasum -a 256 -c -
 	openjml_version =openjml-macos-14-21-0.23.zip
+	alloy_version =org.alloytools.alloy.dist.jar
+	tla_version =tla2tools.jar
 	# This is the checksum for the clojure-tools archive
 	#clojure_cli_sha =6e5caaebdc20cee84460a6d378437db7a4f877b445d53a11cb246eac044cc727
 	## note extra whitespace necessary for MacOS
