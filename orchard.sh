@@ -20,9 +20,9 @@
 set -euo pipefail
 
 IMAGE_NAME="spec-workshop-orchard"
-CONTAINER_NAME="spec-workshop-orchard-$$"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(pwd)"
+CONTAINER_NAME="SWO-$(basename "$PROJECT_DIR")-$$"
 
 # ── Colors for output ────────────────────────────────────────────────────────
 RED='\033[0;31m'
