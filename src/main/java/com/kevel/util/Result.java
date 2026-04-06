@@ -361,7 +361,6 @@ public sealed interface Result<T, E> extends Supplier<T> {
             return false;
         }
 
-        /*@ skipesc @*/
         @Override
         public T get() {
             return value;
@@ -427,7 +426,13 @@ public sealed interface Result<T, E> extends Supplier<T> {
             return true;
         }
 
-        /*@ skipesc @*/
+        /*@ also
+          @   requires true;
+          @   assignable \nothing;
+          @   ensures false;
+          @   signals (Exception e) true;
+          @ skipesc
+          @*/
         @Override
         public T get() {
             return switch (error) {
@@ -498,6 +503,11 @@ public sealed interface Result<T, E> extends Supplier<T> {
         };
     }
 
+    /*@ private exceptional_behavior
+      @   requires true;
+      @   assignable \nothing;
+      @   signals (Exception e) true;
+      @*/
     @SuppressWarnings("unchecked")
     private static <R, X extends Throwable> R sneakyThrow(Throwable throwable) throws X {
         throw (X) throwable;
