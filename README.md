@@ -88,6 +88,7 @@ Copy the desired commands and skills into your `.opencode` or `.claude` director
 
 #### Commands
 `commands` - contains common commands you can use directly or adapt for you project
+- `/review-plan` - Perform a quick assessment for completeness and accuracy of a given plan
 - `/optimize-code @some/path/to/code` - Perform an optimization review of the code
 - `/enhance-code @some/path/to/code` - Review the code for quality and spec alignment
 - `/spec-evidence @some/spec.md` - Update the spec.md file so Scenarios link to source and tests. You can also list src and test dirs to focus the command if needed
@@ -102,6 +103,12 @@ Copy the desired commands and skills into your `.opencode` or `.claude` director
 #### Scripts
 The `scripts` directory contains additional tools/scripts to assist in agent-based development
 - `evidence.sh` is a doctest tool that turns "living docs" (`spec.md`) into verification artifacts. Validation + Verification in a single source.
+
+#### Additional docs and libraries
+This repo contains helpful [docs](/docs) that are useful for humans and agents. It also contains useful `utils` for building up robust systems in Java.
+
+If you need additional data structure libraries, please use [Bifurcan](https://github.com/lacuna/bifurcan/tree/master) or [Capsule](https://github.com/usethesource/capsule) for immutable, persistent data structures.
+Please use [Eclipse Collections](https://eclipse.dev/collections/) for performance-oriented data structures.
 
 ### License
 
