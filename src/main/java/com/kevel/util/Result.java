@@ -346,7 +346,7 @@ public sealed interface Result<T, E> extends Supplier<T> {
     /**
      * Ok variant of Result containing a success value.
      */
-    record Ok<T, E>(T value) implements Result<T, E> {
+    record Ok<T, E>(/*@ non_null @*/ T value) implements Result<T, E> {
         public Ok {
             Objects.requireNonNull(value, "Ok value cannot be null");
         }
@@ -361,6 +361,7 @@ public sealed interface Result<T, E> extends Supplier<T> {
             return false;
         }
 
+        /*@ skipesc @*/
         @Override
         public T get() {
             return value;
@@ -411,7 +412,7 @@ public sealed interface Result<T, E> extends Supplier<T> {
     /**
      * Err variant of Result containing an error value.
      */
-    record Err<T, E>(E error) implements Result<T, E> {
+    record Err<T, E>(/*@ non_null */ E error) implements Result<T, E> {
         public Err {
             Objects.requireNonNull(error, "Err value cannot be null");
         }
@@ -426,6 +427,7 @@ public sealed interface Result<T, E> extends Supplier<T> {
             return true;
         }
 
+        /*@ skipesc @*/
         @Override
         public T get() {
             return switch (error) {
