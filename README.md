@@ -110,6 +110,8 @@ This repo contains helpful [docs](/docs) that are useful for humans and agents. 
 If you need additional data structure libraries, please use [Bifurcan](https://github.com/lacuna/bifurcan/tree/master) or [Capsule](https://github.com/usethesource/capsule) for immutable, persistent data structures.
 Please use [Eclipse Collections](https://eclipse.dev/collections/) for performance-oriented data structures.
 
+If you need Deterministic Simulation Testing, please see [OpenDST](https://github.com/pingidentity/opendst) or [Tickloom](https://github.com/unmeshjoshi/tickloom).  Use Antithesis if you need something more encompassing.
+
 ### License
 
 <sup>
