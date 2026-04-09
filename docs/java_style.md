@@ -305,6 +305,11 @@ Prefer switch expressions for all conditional handling.  `if` should only be use
 
 All classes and interfaces that are used in a Java file should be imported. Be explicit about class dependency even if the classes are in the same Java package.
 
+### Interfaces isolate implementation decisions
+
+Isolate the details of using specific libraries, technologies, or I/O interfaces behind an interface, such that the implementation decision can be changed without changing the integrated code. Always program to an interface, not an implementation.
+These interfaces will later be used during testing to mock out details or to control fault injection.
+
 ### Documentation
 
 Documentation is part of the safety case. It must make the intended semantics, constraints, and trust boundaries explicit enough for reviewers, maintainers, test authors, and verification tools to work from the same mental model.
