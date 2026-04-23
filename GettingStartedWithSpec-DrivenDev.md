@@ -48,7 +48,7 @@ From a high-level, these are the steps that will drive our Spec-Driven Developme
 This is the DESIRED Outcome (Draw/Invariants, Explore, Spec, Implement, Review with agents, Examine, Done).  These steps describe one way of working, but not the only way of working.  As you become more comfortable with the tooling, you can adapt the techniques as needed.
 There’s no time like the present, let’s get started\!
 
-### The tools {#the-tools}
+### The tools
 
 First, we need a coding agent/harness:
 
@@ -65,7 +65,7 @@ npm install -g opencode-ai
 npm install -g fission-ai/openspec
 ```
 
-If you’re using OpenCode, you’ll want to [connect to Kevel’s Copilot](https://opencode.ai/docs/providers/#github-copilot) subscription.  Change to a temp/scratch directory in your terminal and execute the opencode command.  Once opencode launches, type /connect (you’re going to be following the [Copilot Provider instructions](https://opencode.ai/docs/providers/#github-copilot)).
+If you’re using OpenCode, you’ll want to connect a provider (eg: like your [Copilot](https://opencode.ai/docs/providers/#github-copilot) subscription).  Change to a temp/scratch directory in your terminal and execute the `opencode` command.  Once opencode launches, type /connect (you’re going to be following the [Copilot Provider instructions](https://opencode.ai/docs/providers/#github-copilot)).
 
 Next, clone the [repository](https://github.com/adzerk/spec-driven-workshop) used for this workshop:
 
@@ -82,23 +82,23 @@ The goal of the sandbox is strong isolation of the coding agent.  Never put secr
 
 ### Kicking the tires
 
-Using your sandbox, start up your coding agent (for example, using the opencode command).  You should be greeted by a screen that looks like this:
+Using your sandbox, start up your coding agent (for example, using the `opencode` command).  You should be greeted by a screen that looks like this:
 ![][image1]
 
 We can see the main mode of interaction is through agent prompting.  We’re currently using our **Build** agent and as indicated in the TUI, hitting \<tab\> cycles through your main agents (by default, that’s Plan and Build).  Hitting ctrl+p opens up a command palette.  Hitting ctrl+t will cycle through the variants of your currently selected model if your model supports variants (eg: xhigh, high, medium, low).  At the bottom left you’ll notice the current working directory and the active git branch.  In the bottom right corner we see the version of OpenCode – OpenCode will automatically update in the background (this behavior can be configured).
 
-Start by entering the / character in the prompt.  You’ll notice that this is how commands can be autocompleted and executed.  Along the way we’ll make custom commands, but let’s start by looking at a few commands you’ll use often.  While typing a command you can hit \<tab\> to autocomplete that command.
+Start by entering the `/` character in the prompt.  You’ll notice that this is how commands can be autocompleted and executed.  Along the way we’ll make custom commands, but let’s start by looking at a few commands you’ll use often.  While typing a command you can hit \<tab\> to autocomplete that command.
 
-* /models \- Select the model you want to use from the list of all the models you currently have configured.  The arrow keys navigate/select and the list is fuzzy-filtered by typing.  You can change your model throughout your working session, selecting the best model for the task you’re performing (or using different models to cross-check work performed by the agent).
+* `/models` \- Select the model you want to use from the list of all the models you currently have configured.  The arrow keys navigate/select and the list is fuzzy-filtered by typing.  You can change your model throughout your working session, selecting the best model for the task you’re performing (or using different models to cross-check work performed by the agent).
   ![][image2]
-* /sessions \- Your interaction with the agents is saved in a Session.  Using the sessions command lets you select between these sessions and delete old/unused sessions.  You can always start a new session with the /new command.
+* `/sessions` \- Your interaction with the agents is saved in a Session.  Using the sessions command lets you select between these sessions and delete old/unused sessions.  You can always start a new session with the `/new` command.
   Later on we’ll see more advanced session operations.
-* /exit \- This is how you quit
+* `/exit` \- This is how you quit
 
 #### Important keys
 
-The most important key to remember is Esc.  The Esc key is used to cancel operations, exit menus, and most importantly, interrupt the agent/model from executing its current task.  Without a doubt, you’re going to see the agent doing something stupid as you shout “no, no, no\!” and you’ll be hammering Esc repeatedly.  For those of you coming from Vim, you’ll feel right at home.
-The @ key is used often within the prompt input.  Using @ is how you delegate a prompt/input to a subagent and it’s also how you link files into your context.  For example, in your current prompt, enter the following (and notice how autocomplete kicks in): @explore explain how @Makefile works in this project
+The most important key to remember is `Esc`.  The Esc key is used to cancel operations, exit menus, and most importantly, interrupt the agent/model from executing its current task.  Without a doubt, you’re going to see the agent doing something stupid as you shout “no, no, no\!” and you’ll be hammering Esc repeatedly.  For those of you coming from Vim, you’ll feel right at home.
+The `@` key is used often within the prompt input.  Using @ is how you delegate a prompt/input to a subagent and it’s also how you link files into your context.  For example, in your current prompt, enter the following (and notice how autocomplete kicks in): `@explore explain how @Makefile works in this project`
 ![][image3]
 While the subagent is running, hit ctrl+x right to see the subagent’s work/thinking (and notice how OpenCode is telling you how to navigate back into the main agent’s session.
 ![][image4]
@@ -109,11 +109,12 @@ All of that context and work performed by subagent didn’t pollute your interac
 Also noticed that [OpenCode ships with LSP servers](https://opencode.ai/docs/lsp/) for many popular languages (just like an IDE).  It uses these LSP integrations to help the LLM interact with your codebase.
 ![][image5]
 
-Now that we’ve done some work, take a look at /sessions again.
+Now that we’ve done some work, take a look at `/sessions` again.
 
 #### Build vs Plan
 
 From [the OpenCode docs](https://opencode.ai/docs/agents/),
+
 *Agents are specialized AI assistants that can be configured for specific tasks and workflows. They allow you to create focused tools with custom prompts, models, and tool access.*
 *…*
 *\[The Plan Agent\] is a restricted agent designed for planning and analysis. We use a permission system to give you more control and prevent unintended changes. By default, all of the following are set to ask:*
@@ -250,7 +251,7 @@ After we have invariants for all the “boxes” we can start to focus on the li
 
 That seems like a pretty good start\!  We now have an initial idea of what a correct system should look like and how it should work.  Whenever we learn something new about our system, we’ll return to update our diagram and refine the invariants/requirements.  This will always be the foundation of our system understanding as long as the system remains operational.
 
-#### 2\. Exploration and probing {#2.-exploration-and-probing}
+#### 2\. Exploration and probing
 
 Let’s explore our initial system design to see if we uncover any more requirements or invariants.  We also want to see how the coding agent will interpret our initial design and if we need to refine the language or details.  Along the way we’ll learn some useful [prompting techniques](https://learnprompting.org/docs/intermediate/introduction) when working with the coding agent.
 
@@ -313,7 +314,7 @@ By default, the coding agent should spit the contents of the command into the co
 
 … and without any arguments this command will explore the current code base, extract useful information, and make some suggestions.  But also notice that you can use this /opsx-explore command to explore ideas (like we did in the previous Explore/Probing step).  Using this command is a useful way to build up a context that the agent will use to document the spec.  If you have a clean/fresh context, try using one of the previous prompts or plan.md files from Section 2 to populate it now.  In my case, the agent discovered [an older session I recorded](https://github.com/adzerk/spec-driven-workshop/blob/des-pdg_step3/sessions/session-initial-explore_1.md) and used that to populate the context.
 
-Let’s create our first spec.  We want to create a spec that’s small enough for another engineer to read and understand – it should be small, focused, concise, and achieve one single outcome.  The final implementation/code deliverable for the specification should also be small enough to be fit in your head.  One benefit of the exploring/probing we did in the [Section 2](#2.-exploration-and-probing) is that we developed a sense of how the requirements grouped together and how large the total code output ends up being.  In the case of our DES library, we can fit it all into a single spec.
+Let’s create our first spec.  We want to create a spec that’s small enough for another engineer to read and understand – it should be small, focused, concise, and achieve one single outcome.  The final implementation/code deliverable for the specification should also be small enough to be fit in your head.  One benefit of the exploring/probing we did in the [Section 2](#2-exploration-and-probing) is that we developed a sense of how the requirements grouped together and how large the total code output ends up being.  In the case of our DES library, we can fit it all into a single spec.
 Switch to the Build agent enter the following prompt/command:
 /opsx-propose des-library
 
