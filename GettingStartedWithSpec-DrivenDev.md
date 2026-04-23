@@ -98,9 +98,14 @@ Start by entering the `/` character in the prompt.  You’ll notice that this is
 #### Important keys
 
 The most important key to remember is `Esc`.  The Esc key is used to cancel operations, exit menus, and most importantly, interrupt the agent/model from executing its current task.  Without a doubt, you’re going to see the agent doing something stupid as you shout “no, no, no\!” and you’ll be hammering Esc repeatedly.  For those of you coming from Vim, you’ll feel right at home.
-The `@` key is used often within the prompt input.  Using @ is how you delegate a prompt/input to a subagent and it’s also how you link files into your context.  For example, in your current prompt, enter the following (and notice how autocomplete kicks in): `@explore explain how @Makefile works in this project`
+The `@` key is used often within the prompt input.  Using @ is how you delegate a prompt/input to a subagent and it’s also how you link files into your context.  For example, in your current prompt, enter the following (and notice how autocomplete kicks in):
+
+`@explore explain how @Makefile works in this project`
+
 ![][image3]
+
 While the subagent is running, hit ctrl+x right to see the subagent’s work/thinking (and notice how OpenCode is telling you how to navigate back into the main agent’s session.
+
 ![][image4]
 
 COOL\!  You just learned something very important about Agents and Subagents\!
@@ -206,6 +211,7 @@ Working through the base requirements, critical quality attributes, and fundamen
 Deeply knowing the core invariants will make debugging a system seem trivial (and will make understanding and managing failure modes within the code much simpler) – if a bug happens in the system we know some invariant wasn’t enforced or there’s a new invariant we missed.  Collecting this information and drawing a simple system diagram will also make forward evolution of the system easier to manage.
 
 Let’s start with a simple [“box-and-line” drawing](https://miro.com/app/board/uXjVG1TLtus=/) of the discrete event simulation (DES) system and we’ll explore how to analyze it to extract invariants.  We know we need something to store the events, something to execute the events, and some way to accumulate state as the execution runs.  Let’s also write down what we’re building, why we’re building it (what problem are you solving; what job needs to be done; what is the core motivation for making this investment), and any requirements we know we have.  Try it yourself before reading further.
+
 ![][image10]
 ![][image11]
 
@@ -319,9 +325,11 @@ Switch to the Build agent enter the following prompt/command:
 /opsx-propose des-library
 
 The agent is going to create the necessary files for the specification and use the context to automatically populate them.  We can see the agent working through the TODO list
+
 ![][image15]
 
 And here are the files that got created \[[docs](https://github.com/Fission-AI/OpenSpec/blob/main/docs/getting-started.md#what-openspec-creates)\]:
+
 ![][image16]
 
 The proposal describes the “why” and “what” of our specification.  Open proposal.md in a text editor and make sure it captures everything we learned from Section 2 – all of the essential requirements and invariants related to why/what.  You can see the proposal my agent created using GPT 5.4 [here](https://github.com/adzerk/spec-driven-workshop/blob/des-pdg_step3/openspec/changes/des-library/proposal.md).
@@ -338,7 +346,9 @@ We can cross-check the specification using a different model to check for comple
 Review all the specification artifacts in @openspec/changes/des-library/ for completeness and accuracy.  Highlight any inconsistencies, requirements that contradict each other, illogical statements, missing specifications, or ambiguity.  Suggest general improvements.  Ask clarifying questions.
 
 A snapshot from [my output](https://github.com/adzerk/spec-driven-workshop/blob/des-pdg_step3/sessions/initial-spec-review.md):
-![][image17]\+
+
+![][image17]
+
 This kind of cross-review will often point out real issues and suggest very good improvements to make – adjust the prompt for your project, eg: include things like “secure by design” or other foundational practices important to your project (see the [‘grill’ skill](https://github.com/adzerk/ai-skills/blob/main/skills/product/grill/SKILL.md) as another example).
 Saving the output of these reviews are useful in case auto-compaction kicks in and you need to refocus the context.  Read the review carefully, fix any issues, and make any additional updates you want to the specification artifacts.  You can also switch to the Build agent and prompt for the agent to make all corrections and improvements – that’s what I did and you can see the [results of my spec here](https://github.com/adzerk/spec-driven-workshop/tree/des-pdg_step3_review/openspec/changes/des-library).  I also updated the spec using the agent to capture more of our initial invariants and requirements.
 Commit all of your work once it is complete, and make sure to commit the spec docs in the repo.
@@ -387,18 +397,20 @@ Stage the code changes with git add but DO NOT COMMIT THEM.  You’ll see why in
 
 We’re going to use sub-agents to perform an optimization pass, a quality review (focusing on tests, security, invariants), and a final code review.  The goal is to ensure the code quality is high, the solution quality is high, and everything is correct.  Out of habit, I always create a new session for this step, but I don’t think that’s strictly necessary with the latest models.  Let’s switch to a new model for review (something different than the model you used for implementation).  Because I used 5.3-codex for implementation, I’m going to use Opus 4.6 for reviews.
 
-We’ll perform an initial code review with OpenCode’s /review command.  By default, this command will review all staged changes.  Try that command now.
+We’ll perform an initial code review with OpenCode’s `/review` command.  By default, this command will review all staged changes.  Try that command now.
 After the review (and any applied changes), stage all the fixes with git add and commit them on your branch.
 
 Did you see something interesting when the /review command was executing?  Part of the execution happened as a sub-agent (even though there is no dedicated sub-agent for code reviews).  Commands have an option to be executed as [subtasks](https://opencode.ai/docs/commands/#subtask), which forces the agent to act as a sub-agent.  This is useful to prevent noisy tasks/commands from polluting your main context.  Let’s use this to make specific review commands that operate as sub-agents.
 
 Let’s create a command to perform an optimization pass.  Copy the [/optimize-code command](https://github.com/adzerk/spec-driven-workshop/blob/des-pdg_step5_optimize/.opencode/command/optimize-code.md) into your OpenCode config at: \~/.config/opencode/commands/ (create the command directory if needed).  You can also optionally copy it into the project’s .opencode/commands directory (if you want the command to only be available in this project).  Restart OpenCode and call:
-/optimize-code @src/main/java/com/kevel/des
+
+`/optimize-code @src/main/java/com/kevel/des`
 
 The command kicks off a sub-agent and begins analyzing the code for different classes of optimizations to make.  You can customize this command to look for optimization opportunities that make sense to your project.  Here are [the sub-agent results](https://github.com/adzerk/spec-driven-workshop/blob/des-pdg_step5_optimize/sessions/optimize_run.md) when I ran the command (I removed the tool calls).  My main agent presented me with options to plan out, I selected to remove redundant null-checks, switched to my Build agent and executed the plan – you can see [the full diff here](https://github.com/adzerk/spec-driven-workshop/commit/1eca39448e343d55a3c94fa65ce50cb8b4f7c7ea#diff-4062c2a8f39cfa7bd983d801e741108e7b761da7171bf6f036a0b3d7a0171925).
 
 Let’s now create a code quality review command to enhance the code base. Copy the [/enhance-code command](https://github.com/adzerk/spec-driven-workshop/blob/des-pdg_step5_enhance/.opencode/command/enhance-code.md) into your OpenCode config.  Restart OpenCode and give it a try with:
-/enhance-code @src/main/java/com/kevel/des
+
+`/enhance-code @src/main/java/com/kevel/des`
 
 I decided to accept all the enhancements the agent identified and you can see that [full diff/commit here](https://github.com/adzerk/spec-driven-workshop/commit/cd9e5e71a485820c03d53468d760c375423f63b6).  Anytime the agent makes a claim or a suggestion, I usually prompt to confirm the claim/suggestion with a unit test – this is like bringing the “chain-of-code” prompting technique into the development and review process.
 
