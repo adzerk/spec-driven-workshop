@@ -5,7 +5,7 @@ Spec-driven Workshop
 This is a workshop repo designed to help engineers learn about spec-driven
 development (and lightweight formal methods) through a series of exercises.
 
-For more details, see [the main guide](/GettingStartedWithSpec-DrivenDev.md) and [reference](/reference.md).
+For more details, see [the main guide](/GettingStartedWithSpec-DrivenDev.md) and [reference](/reference.md).  See the `main-more` branch for... more.
 
 ### Minimal requirements
 
