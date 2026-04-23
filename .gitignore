@@ -2,6 +2,7 @@
 tooling
 tooling/
 pom.xml.asc
+dependency-reduced-pom.xml
 *.jar
 *.class
 lib/

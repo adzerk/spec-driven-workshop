@@ -5,7 +5,7 @@ Spec-driven Workshop
 This is a workshop repo designed to help engineers learn about spec-driven
 development (and lightweight formal methods) through a series of exercises.
 
-For more details, see [the main guide](https://docs.google.com/document/d/1thg_fBgx5VA34uHJsa31dcPdJ6aC8y1c2iB6NBsAzeo).
+For more details, see [the main guide](/GettingStartedWithSpec-DrivenDev.md) and [reference](/reference.md).  See the `main-more` branch for... more.
 
 ### Minimal requirements
 
@@ -103,3 +103,17 @@ Copy the desired commands and skills into your `.opencode` or `.claude` director
 The `scripts` directory contains additional tools/scripts to assist in agent-based development
 - `evidence.sh` is a doctest tool that turns "living docs" (`spec.md`) into verification artifacts. Validation + Verification in a single source.
 
+### License
+
+<sup>
+Licensed under either of <a href="LICENSE-APACHE">Apache License, Version
+2.0</a> or <a href="LICENSE-MIT">MIT license</a> at your option.
+</sup>
+
+<br>
+
+<sub>
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in this crate by you, as defined in the Apache-2.0 license, shall
+be dual licensed as above, without any additional terms or conditions.
+</sub>
