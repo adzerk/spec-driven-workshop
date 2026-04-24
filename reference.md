@@ -32,4 +32,4 @@ We need to have high confidence and assurance in the artifacts produced by our c
 * Extended checking with code verifiers and similar tools  
 * Subagents for code-review, testing, and code optimization passes (we’ll cover these in the workshop)
 
-Regardless of the language and runtime of your project, you should have support for each of these critical areas.  You also need a [strong sandbox](?tab=t.0#heading=h.1fgtjot5p1vd).
+Regardless of the language and runtime of your project, you should have support for each of these critical areas.  You also need a [strong sandbox](GettingStartedWithSpec-DrivenDev.md#safety-first-sandboxing).

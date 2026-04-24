@@ -1,0 +1,5 @@
+main:
+  - title: "Getting Started"
+    url: /guide.html
+  - title: "Reference"
+    url: /reference.html
