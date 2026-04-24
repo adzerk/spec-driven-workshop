@@ -126,17 +126,22 @@ From [the OpenCode docs](https://opencode.ai/docs/agents/),
 
 * *file edits: All writes, patches, and edits*
 * *bash: All bash commands*
-  *This agent is useful when you want the LLM to analyze code, suggest changes, or create plans without making any actual modifications to your codebase.*
-  *…*
-  *\[The Build Agent\] is the default primary agent with all tools enabled. This is the standard agent for development work where you need full access to file operations and system commands.*
+
+*This agent is useful when you want the LLM to analyze code, suggest changes, or create plans without making any actual modifications to your codebase.*
+
+*…*
+
+*\[The Build Agent\] is the default primary agent with all tools enabled. This is the standard agent for development work where you need full access to file operations and system commands.*
 
 Most of our time will be spent with the Plan agent, building up the context, decomposing the problem, and creating a plan with distinct phases and acceptance criteria.  You’ll likely want to use another model (while still using the Plan agent) to review and cross-check that plan.  We’ll then use the Build agent to execute that plan, steering the Build agent as needed (by updating the original plan and making small corrections).
 Later in the guide, we’ll expand on the way of working, but this general approach of “focus and iterate on the Plan, then Build” is a core pillar.
 
 #### The workshop repo and supporting our agents
 
-Above in [“The tools” section](#the-tools), we cloned the [workshop repository](https://github.com/adzerk/spec-driven-workshop).  Take a moment to read through the README of the project if you haven’t done so already.  You can use the ‘orchard’ container or a local setup.  If you use a local setup, make sure you have the [pre-reqs installed](/README.md#minimal-requirements) and that you run the necessary initial commands (with a strong internet connection):
+Above in [“The tools” section](#the-tools), we cloned the [workshop repository](https://github.com/adzerk/spec-driven-workshop).  Take a moment to read through the README of the project if you haven’t done so already.  You can use the `orchard` container or a local setup.  If you use a local setup, make sure you have the [pre-reqs installed](/README.md#minimal-requirements) and that you run the necessary initial commands (with a strong internet connection):
+```
 make tooling; make check
+```
 
 We need to have high confidence and assurance in the artifacts produced by our coding agents and also support the agents with as much automated, directed feedback as possible.  We’re going to achieve that through a number of tools and techniques:
 
@@ -149,9 +154,11 @@ We need to have high confidence and assurance in the artifacts produced by our c
 
 Regardless of the language and runtime of your project, you should have support for each of these critical areas.
 
-Let’s turn our attention to the workshop repo for a moment.  When we run make check, the code is formatted, compiled, the full test suite runs, and all of the static analyzers are executed.  Try it now (if you haven’t done so already) – you’ll see everything passes\!
+Eventually we'll expand on this list, giving our agents full visibility into centralized logs, system metrics, network traces, and more.  Our goal is to maximize the input signals and minimize noise.
 
-But looks are deceiving.  Let’s run make check-jml which will run all the steps from before, but also run the static verifier over the code.  We can see a few issues are flagged even though the specifications in the code aren’t very precise.  We first look for the output related to our increasingSum method and see the result was INVALID:
+Let’s turn our attention to the workshop repo for a moment.  When we run `make check`, the code is formatted, compiled, the full test suite runs, and all of the static analyzers are executed.  Try it now (if you haven’t done so already) – you’ll see everything passes\!
+
+But looks are deceiving.  Let’s run `make check-jml` which will run all the steps from before, but also run the static verifier over the code.  We can see a few issues are flagged even though the specifications in the code aren’t very precise.  We first look for the output related to our increasingSum method and see the result was INVALID:
 ![][image6]
 
 We can see that there are possible integer overflow bugs that we haven’t accounted for:
@@ -233,10 +240,11 @@ But what does our event store *actually* store? Let’s write down some core req
 * Single-threaded; This implies only a single Executor/Worker running at one time, with access to a single “World” or simulation State.
 * Value-oriented; This implies that the system is going to be functional in nature.  The “World” is immutable (value-oriented).  At a minimum, the Executor/Worker must take a “World” and produce a new “World” for each simulation action / simulation step.
 * Java 21; This implies the language features we have access to: Record types, pattern-matching, sum types/sealed interfaces, local type inference, etc.  We can also use language/runtime features to help enforce correctness for our “single-threaded” requirement.
-* Deterministic core; In combination with our value-oriented approach, this implies the main implementation will be constructed with pure function/methods.  Sources of non-determinism (mainly time, I/O, and conditional behavior) will be pushed to the edges of our system and passed in as arguments to the deterministic core.
+* Deterministic core; In combination with our value-oriented approach, this implies the main implementation will be constructed with pure functions/methods.  Sources of non-determinism (mainly time, I/O, and conditional behavior) will be pushed to the edges of our system and passed in as arguments to the deterministic core.
 * State machine construction; In combination with all the other requirements, this implies a very clean “protocol” for how an Executor/Worker claims an action/event, executes it, captures the result (an immutable value, the new “World”), as well as internal system updates like the “clock”.
 
-Whoa\!  Wait a minute, that’s it\!  At a minimum, our Event Store must store some kind of pure function that takes a “World” argument and returns a “World” value.  We probably also need a way for the simulation to “evolve” (where one action leads to another action in the simulation) – so our pure function should take a “World” argument and return a list of new Events/functions to insert into the Event Store, and a new “World” value.
+Whoa\!  Wait a minute, that’s it\!  At a minimum, our Event Store must store some kind of pure function that takes a “World” argument and returns a “World” value.  We probably also need a way for the simulation to “evolve” (where one action leads to another action in the simulation) – so our pure function should take a “World” argument and return a list of new Events/functions to insert into the Event Store, as well as a new “World” value.
+
 We should make the World something easy to work with and extensible – an associative data structure will work well (eg: a simple Map).  We have a few options for how to make the system value-oriented (immutable data structures, Copy-on-write data structures, or exclusive mutability) – we’ll wait to see how the system comes together before deciding.  We’re ignoring quality attributes for now (but for production systems, these are almost *more* important than the core functional requirements).
 
 Let’s continue with our analysis; boxes first, then lines.
@@ -261,30 +269,43 @@ That seems like a pretty good start\!  We now have an initial idea of what a cor
 
 Let’s explore our initial system design to see if we uncover any more requirements or invariants.  We also want to see how the coding agent will interpret our initial design and if we need to refine the language or details.  Along the way we’ll learn some useful [prompting techniques](https://learnprompting.org/docs/intermediate/introduction) when working with the coding agent.
 
-Every aspect of your interaction within a session will be part of the LLM’s context.  If you feel like you aren’t getting the results you want or want to go down a new path, you should create a /new session.  You can jump back to old messages within your current session using /timeline, and optionally revert that interaction or fork from there into a new session.  As you’re working, you may realize you have another question or an idea, but you want to keep the current session focused on the current task – you can /fork to create a new session to pursue the side-quest.  You are now a session wizard, let’s start.  Create a new branch in the repo for your work with:
-git checkout \-b des
+Every aspect of your interaction within a session will be part of the LLM’s context.  If you feel like you aren’t getting the results you want or want to go down a new path, you should create a `/new` session.  You can jump back to old messages within your current session using `/timeline`, and optionally revert that interaction or fork from there into a new session.  As you’re working, you may realize you have another question or an idea, but you want to keep the current session focused on the current task – you can `/fork` to create a new session to pursue the side-quest.  You are now a session wizard, let’s start.  Create a new branch in the repo for your work with:
+
+```
+git checkout -b des
+```
 
 Start as vague and open-ended as possible:
-Design and plan a simple discrete event simulation library in Java 21\.  The core implementation should be in a functional style.  The implementation must be single-threaded.  Explicitly document all pre-conditions, post-conditions, and invariants.
 
-This minimal structure is good enough to see the general direction the agent will take.  Always include the line about documenting pre/post-conditions and invariants – this will help guide the agent to correct logical conclusions and to a more successful implementation.  It also makes it a bit easier to evaluate as a human.  You might also consider adding, “Ask me clarifying questions” to your initial prompt.  Sometimes that can accelerate finding new invariants you missed.
+```
+Design and plan a simple discrete event simulation library in Java 21.  The core implementation should be in a functional style.  The implementation must be single-threaded.  Explicitly document all pre-conditions, post-conditions, and invariants.
+```
+
+This minimal structure is good enough to see the general direction the agent will take.  Always include the line about documenting pre/post-conditions and invariants – this will help guide the agent to correct logical conclusions and lead to a more successful implementation.  It also makes it a bit easier to evaluate as a human.  You might also consider adding, “Ask me clarifying questions” to your initial prompt.  Sometimes that can accelerate finding new invariants you missed.
+
 You can see the [result of my initial prompt in the git repo](https://github.com/adzerk/spec-driven-workshop/blob/des-pdg/sessions/session-initial-explore_1.md) (I left the tool-calls).  Already we can see some interesting and informative results.  The agent identified multiple ways to achieve our functional and value-oriented design requirements, suggested an alternative to a total-order where we *can* have events scheduled for the same time, it also designed the interface with a peek operation (but notice it used Optional to avoid null, something I missed in the initial invariants), it made the simulation state a generic (which is a bit more flexible than forcing Map), and I like the design of an explicit, immutable StepResult.  It also gives me an idea- I’d like to see the sequence of all StepResults, which would make post analysis a bit easier as well as writing some tests (I understand this is going to put strain on the GC and total memory used).
 Update the initial diagram, invariants, and requirements with anything you’ve learned.
 ![][image12]
 
-Let’s update this initial plan with any other ideas we have and then see how the Build agent would implement it.  We can write the plan to a markdown file with the Build agent:
+Let’s update this initial plan with any other ideas we have and then see how the Build agent would implement it -- we're just sketching around right now.  We can write the plan to a markdown file with the Build agent:
+```
 Condense this plan including all invariants, pre-conditions, and post-conditions into a Markdown file called plan.md
+```
 
 I also recommend sending a prompt similar to this one:
-Capture the entire plan including implementation guidance and all constraints into a Markdown file called long\_plan.md
+```
+Capture the entire plan including implementation guidance and all constraints into a Markdown file called long_plan.md
+```
 
 Review both of those documents in your text editor and ensure they are correct.
 At this point you’ll notice that we’ve used up some amount of the context (look in top right of the screen, in my case I’ve used up 20% of the context).  Starting a new session (with a clean context) and seeding the new session with a markdown file is one strategy you can use to control and reset the context (and this is often helpful when switching from Plan to an extensive Build session).  Another option is auto-compact – Most coding agents now will automatically compact the context for you, allowing you to continue working without any issue.  Different models have different sensitivity to automatic compaction.
-Finally, you can always manually compact the context for the current session with the /compact command.
-Try the /compact command now and see the output (as well as the impact on your context usage).  You may have to rebuild up some important (but missing) context after compaction.
+Finally, you can always manually compact the context for the current session with the `/compact` command.
+Try the `/compact` command now and see the output (as well as the impact on your context usage).  You may have to rebuild up some important (but missing) context after compaction.
 
-Using the Build agent, switch your model to your preferred code-specific model (using the /models command).  Let’s just see what this implementation would look like – code is free/infinite, so consider this like an instantaneous coding spike.  Our goal here is to see if it triggers any ideas for us or highlights any requirements or invariants we’re missing.  I’m going to remain in the same session and kick off the Build agent with this prompt:
+Using the Build agent, switch your model to your preferred code-specific model (using the `/models` command).  Let’s just see what this implementation would look like – code is free/infinite, so consider this like an instantaneous coding spike.  Our goal here is to see if it triggers any ideas for us or highlights any requirements or invariants we’re missing.  I’m going to remain in the same session and kick off the Build agent with this prompt:
+```
 Implement the plan described in this session, @plan.md and further in @long\_plan.md .  Document all pre-conditions, post-conditions, and invariants.  Follow the validation plan using JUnit 5 and jqwik.
+```
 
 This is an important technique you can use with your coding agent – whenever you want to tightly control the context and focus of the agent, you can capture the relevant information within a collection of markdown files and reference them in your prompt.  For example, you might want to grab relevant sections of a research paper or product brief and copy them into a markdown file to get them into your context.
 
@@ -298,19 +319,25 @@ While we wait for the implementation, here are some other prompting techniques:
 Try things out and you’ll quickly find approaches that work well for you and your setup.  When you find a prompt or technique that you use often, you can turn it into a [custom command](https://opencode.ai/docs/commands/) within the coding agent (commands are just markdown docs with special formatting that get inserted into the context).  For example, you might want to turn your standard Planning prompt into a custom command.
 
 Ok back to our explorative implementation (mine took about three minutes to complete).
-Out of habit, I always run make check before diving into the code to see if there are any obvious errors.  In my case, there are unused variables within the test files, but otherwise everything looks good.  You can check the implementation and tests against the original invariants we created earlier (as well as what was documented in the plan files).  You can see my [code/agent sketch result here](https://github.com/adzerk/spec-driven-workshop/tree/des-pdg_step2).  I also asked the model to “Create a simple box-and-line architecture diagram of the discrete event simulation library.  Save the diagram as a png file” and you can see that result [here](https://github.com/adzerk/spec-driven-workshop/blob/des-pdg_step2/docs/des-architecture.png).
-We can also see how well the coding agent can document the invariants with JML specs – this step is totally optional but if you do it, I recommend a new session (and maybe using the [openjml skill](https://github.com/adzerk/spec-driven-workshop/tree/pdg-skills/skills/openjml-more)); It’s likely you’ll have to interrupt the agent from running with Esc if it starts to go off the rails.  If you want, you can try a prompt like this:
+
+Out of habit, I always run `make check` before diving into the code to see if there are any obvious errors.  In my case, there are unused variables within the test files, but otherwise everything looks good.  You can check the implementation and tests against the original invariants we created earlier (as well as what was documented in the plan files).  You can see my [code/agent sketch result here](https://github.com/adzerk/spec-driven-workshop/tree/des-pdg_step2).  I also asked the model to “Create a simple box-and-line architecture diagram of the discrete event simulation library.  Save the diagram as a png file” and you can see that result [here](https://github.com/adzerk/spec-driven-workshop/blob/des-pdg_step2/docs/des-architecture.png) -- Every custom tool, every custom artifact/diagram is essentially free now; produce anything/everything that improves assurance and understanding.
+
+We can also see how well the coding agent can document the invariants with JML specs – this step is totally optional but if you do it, I recommend a new session (and maybe using the [openjml skill](https://github.com/adzerk/spec-driven-workshop/tree/pdg-skills/skills/openjml-more)); It’s likely you’ll have to interrupt the agent from running with `Esc` or steering "Stop!" message, if it starts to go off the rails.  If you want, you can try a prompt like this:
+```
 Update the code to include JML specs for all pre-conditions, post-conditions, and invariants.  The JML specs will be checked by OpenJML using the \`make check-jml-only\` command.  Only focus on code in @src/main/com/kevel/des . Some Invalid specifications are ok but there must not be any errors.  Ask before modifying any existing code, and show that it’s necessary because of an invalid specification.
+```
 
 This entire spike took about 50K tokens (with an additional 80K tokens on the JML specs) and about 20 minutes of time including the initial drawing and invariants.
 
-Now create a new git branch (from the main branch) and a new session in the coding agent.  We’re going to repeat the same steps but get more specific.  You might try prompting that you want it to use state machines as a guiding pattern, emphasize the importance of pure functions and a deterministic implementation, that it should use specific Java features (like sealed interfaces, records, switch expressions) – in general, pull more invariants into the prompt.  Iterate with the Plan agent until you see the exact plan you want. Try using different models to cross-check or review the plans that get generated. Once you have a compelling plan, dispatch to the build agent to see the implementation.  Update and refine the invariants and requirements as you learn.  This is the action of creating 10s/100s of prototypes in minutes, a new superpower we have.  The interaction with the coding agent should feel like “sparring” through possible decisions and designs.
-And *always* save the best plan you generated to plan.md. It’s useful to reference and use to establish the ideal context for your current feature/task.
+Now create a new git branch (from the main branch) and a new session in the coding agent.  We’re going to repeat the same steps but get more specific.  You might try prompting that you want it to use state machines as a guiding pattern, emphasize the importance of pure functions and a deterministic implementation, that the test suite should include domain examples (like a network packet simulator or a bank queue), or that it should use specific Java features (like sealed interfaces, records, switch expressions) – in general, pull more invariants into the prompt.  Iterate with the Plan agent until you see the *exact* plan you want. Try using different models to cross-check or review the plans that get generated. Once you have a compelling plan, dispatch to the build agent to see the implementation.  Update and refine the invariants and requirements as you learn.  This is the action of creating 10s/100s of prototypes in minutes, a new superpower we have.  The interaction with the coding agent should feel like “sparring” through possible decisions and designs.
+
+And *always* save the best plan you generated to `plan.md`. It’s useful to reference and use to establish the ideal context for your current feature/task.
 
 #### 3\. Producing the Specs
 
 We’ve written and refined our core invariants and requirements, now we have the knowledge to succeed with our Specs.  We’re going to be using [OpenSpec](https://github.com/Fission-AI/OpenSpec) (version 1.2.0 or better) to manage the workflow and our spec artifacts.  It’s possible to customize OpenSpec to follow any workflow you want for your team or project, but for our workshop, we’re only going to use the core/default workflow.
-In a terminal at the base of the project repo, run openspec init and follow the directions for your setup.  This will create the openspec directory and the basic commands for using OpenSpec within your coding agent (you’ll see there’s a .opencode or .claude directory now).  You can further customize your installation/workflow with openspec config profile ([see the docs](https://github.com/Fission-AI/OpenSpec?tab=readme-ov-file#quick-start) if you’re interested).
+
+In a terminal at the base of the project repo, run `openspec init` and follow the directions for your setup.  This will create the openspec directory and the basic commands for using OpenSpec within your coding agent (you’ll see there’s a .opencode or .claude directory now).  You can further customize your installation/workflow with openspec config profile ([see the docs](https://github.com/Fission-AI/OpenSpec?tab=readme-ov-file#quick-start) if you’re interested).
 
 Start up your coding agent in Plan mode and enter the /opsx-explore command (with no other arguments):
 ![][image13]
@@ -318,11 +345,13 @@ Start up your coding agent in Plan mode and enter the /opsx-explore command (wit
 By default, the coding agent should spit the contents of the command into the context:
 ![][image14]
 
-… and without any arguments this command will explore the current code base, extract useful information, and make some suggestions.  But also notice that you can use this /opsx-explore command to explore ideas (like we did in the previous Explore/Probing step).  Using this command is a useful way to build up a context that the agent will use to document the spec.  If you have a clean/fresh context, try using one of the previous prompts or plan.md files from Section 2 to populate it now.  In my case, the agent discovered [an older session I recorded](https://github.com/adzerk/spec-driven-workshop/blob/des-pdg_step3/sessions/session-initial-explore_1.md) and used that to populate the context.
+… and without any arguments this command will explore the current code base, extract useful information, and make some suggestions.  But also notice that you can use this `/opsx-explore` command to explore ideas (like we did in the previous Explore/Probing step).  Using this command is a useful way to build up a context that the agent will use to create and document the spec.  If you have a clean/fresh context, try using one of the previous prompts or plan.md files from Section 2 to populate it now.  In my case, the agent discovered [an older session I recorded](https://github.com/adzerk/spec-driven-workshop/blob/des-pdg_step3/sessions/session-initial-explore_1.md) and used that to populate the context.
 
 Let’s create our first spec.  We want to create a spec that’s small enough for another engineer to read and understand – it should be small, focused, concise, and achieve one single outcome.  The final implementation/code deliverable for the specification should also be small enough to be fit in your head.  One benefit of the exploring/probing we did in the [Section 2](#2-exploration-and-probing) is that we developed a sense of how the requirements grouped together and how large the total code output ends up being.  In the case of our DES library, we can fit it all into a single spec.
 Switch to the Build agent enter the following prompt/command:
+```
 /opsx-propose des-library
+```
 
 The agent is going to create the necessary files for the specification and use the context to automatically populate them.  We can see the agent working through the TODO list
 
@@ -343,13 +372,16 @@ These are all the invariants and requirements for the system (and they’re near
 In our case, I think there are missing invariants, but let’s roll with it and see what happens.
 
 We can cross-check the specification using a different model to check for completeness and accuracy.  I used GPT-5.4 to generate the spec, so I’m going to switch to the Plan agent and use Opus 4.6 with this prompt:
+```
 Review all the specification artifacts in @openspec/changes/des-library/ for completeness and accuracy.  Highlight any inconsistencies, requirements that contradict each other, illogical statements, missing specifications, or ambiguity.  Suggest general improvements.  Ask clarifying questions.
+```
 
 A snapshot from [my output](https://github.com/adzerk/spec-driven-workshop/blob/des-pdg_step3/sessions/initial-spec-review.md):
 
 ![][image17]
 
-This kind of cross-review will often point out real issues and suggest very good improvements to make – adjust the prompt for your project, eg: include things like “secure by design” or other foundational practices important to your project (see the [‘grill’ skill](https://github.com/adzerk/ai-skills/blob/main/skills/product/grill/SKILL.md) as another example).
+This kind of cross-review will often point out real issues and suggest very good improvements to make – adjust the prompt for your project, eg: include things like “secure by design” or other foundational practices important to your project (see the ['grill' command](https://github.com/adzerk/spec-driven-workshop/blob/main-more/commands/grill.md) as another example).
+
 Saving the output of these reviews are useful in case auto-compaction kicks in and you need to refocus the context.  Read the review carefully, fix any issues, and make any additional updates you want to the specification artifacts.  You can also switch to the Build agent and prompt for the agent to make all corrections and improvements – that’s what I did and you can see the [results of my spec here](https://github.com/adzerk/spec-driven-workshop/tree/des-pdg_step3_review/openspec/changes/des-library).  I also updated the spec using the agent to capture more of our initial invariants and requirements.
 Commit all of your work once it is complete, and make sure to commit the spec docs in the repo.
 
@@ -357,17 +389,18 @@ With a solid spec in hand, it’s time to sit back and watch the fireworks\!
 
 #### 4\. Implementation
 
-Continuing on in your repo, launch your coding agent within your sandbox, switch to the Build agent and create a /new session.  Select your favorite model for code implementation.
-In prompt, enter the /opsx-apply command.
+Continuing on in your repo, launch your coding agent within your sandbox, switch to the Build agent and create a `/new` session.  Select your favorite model for code implementation.
+In prompt, enter the `/opsx-apply` command.
 
 You’ll see the agent start ripping through code, conforming tightly to the specifications.
+
 Depending on your specification, the agent may pause implementation and ask you to intervene.  Steer the agent as needed – you can even emphasize some tasks that it slightly missed (or didn’t do to your liking).  Eventually the implementation will be complete and all tasks will be marked done.  [My implementation](https://github.com/adzerk/spec-driven-workshop/tree/des-pdg_step4/src/main/java/com/kevel/des) took 11 minutes total with two interventions (the model struggled with some OpenJML specs and I had to emphasize documenting all pre-conditions, post-conditions, and invariants).
 
 Perform an initial, quick review of the code and use the initial design invariants (Section 1\) along with the specification as a guide – I find it useful to split my desktop with specs on one side and code on the other.  Ask the Plan agent to explain all of the code changes to you.
-If the code has a glaring mistake or is missing important details, remove the code (using rm or git checkout \-- . ), improve the specification documents and generate the code again.
+If the code has a glaring mistake or is missing important details, remove the code (using `rm` or `git checkout -- .` ), improve the specification documents and generate the code again.
 Repeat this process until you are satisfied – you are in full control.  If you notice the coding agent performing the same mistake consistently (or relearning some aspect of your project), you can place those corrections/details within an [AGENTS.md](http://AGENTS.md) file at the root of your project – this should be unnecessary in most cases, but it’s a helpful tool when you want to consistently focus the context with every agent interaction.  There is more information at the [Rules documentation](https://opencode.ai/docs/rules/) within the OpenCode docs.
 
-Sometimes the coding agent needs access to relevant coding examples or updated library documentation.  In many cases, the agent will achieve this independently using the internal webfetch tool calls, but we can also provide additional tools with [MCP servers](https://opencode.ai/docs/mcp-servers/).  MCP servers will almost always clutter the context and can cause agents to diverge from the specification, so we’ll make sure MCP servers are always disabled by default – we’ll only enable the MCP servers when we spot a problem they might help, using the /mcps command.  Let’s update our OpenCode config (\~/.config/opencode/opencode.json) to have two useful MCP servers, [grep.app](https://grep.app/) (for searching code on github) and [docfork](https://docfork.com/) (for sourcing updated library documentation).
+Sometimes the coding agent needs access to relevant coding examples or updated library documentation.  In many cases, the agent will achieve this independently using the internal webfetch tool calls, but we can also provide additional tools with [MCP servers](https://opencode.ai/docs/mcp-servers/).  MCP servers will almost always clutter the context and can cause agents to diverge from the specification, so we’ll make sure MCP servers are always disabled by default – we’ll only enable the MCP servers when we spot a problem they might help, using the `/mcps` command.  Let’s update our OpenCode config (\~/.config/opencode/opencode.json) to have two useful MCP servers, [grep.app](https://grep.app/) (for searching code on github) and [docfork](https://docfork.com/) (for sourcing updated library documentation).
 
 ```json
 {
@@ -402,35 +435,40 @@ After the review (and any applied changes), stage all the fixes with git add and
 
 Did you see something interesting when the /review command was executing?  Part of the execution happened as a sub-agent (even though there is no dedicated sub-agent for code reviews).  Commands have an option to be executed as [subtasks](https://opencode.ai/docs/commands/#subtask), which forces the agent to act as a sub-agent.  This is useful to prevent noisy tasks/commands from polluting your main context.  Let’s use this to make specific review commands that operate as sub-agents.
 
-Let’s create a command to perform an optimization pass.  Copy the [/optimize-code command](https://github.com/adzerk/spec-driven-workshop/blob/des-pdg_step5_optimize/.opencode/command/optimize-code.md) into your OpenCode config at: \~/.config/opencode/commands/ (create the command directory if needed).  You can also optionally copy it into the project’s .opencode/commands directory (if you want the command to only be available in this project).  Restart OpenCode and call:
+Let’s create a command to perform an optimization pass.  Copy the [/optimize-code command](https://github.com/adzerk/spec-driven-workshop/blob/main/commands/optimize-code.md) into your OpenCode config at: \~/.config/opencode/commands/ (create the command directory if needed).  You can also optionally copy it into the project’s .opencode/commands directory (if you want the command to only be available in this project).  Restart OpenCode and call:
 
 `/optimize-code @src/main/java/com/kevel/des`
 
 The command kicks off a sub-agent and begins analyzing the code for different classes of optimizations to make.  You can customize this command to look for optimization opportunities that make sense to your project.  Here are [the sub-agent results](https://github.com/adzerk/spec-driven-workshop/blob/des-pdg_step5_optimize/sessions/optimize_run.md) when I ran the command (I removed the tool calls).  My main agent presented me with options to plan out, I selected to remove redundant null-checks, switched to my Build agent and executed the plan – you can see [the full diff here](https://github.com/adzerk/spec-driven-workshop/commit/1eca39448e343d55a3c94fa65ce50cb8b4f7c7ea#diff-4062c2a8f39cfa7bd983d801e741108e7b761da7171bf6f036a0b3d7a0171925).
 
-Let’s now create a code quality review command to enhance the code base. Copy the [/enhance-code command](https://github.com/adzerk/spec-driven-workshop/blob/des-pdg_step5_enhance/.opencode/command/enhance-code.md) into your OpenCode config.  Restart OpenCode and give it a try with:
+Let’s now create a code quality review command to enhance the code base. Copy the [/enhance-code command](https://github.com/adzerk/spec-driven-workshop/blob/main/commands/enhance-code.md) into your OpenCode config.  Restart OpenCode and give it a try with:
 
 `/enhance-code @src/main/java/com/kevel/des`
 
 I decided to accept all the enhancements the agent identified and you can see that [full diff/commit here](https://github.com/adzerk/spec-driven-workshop/commit/cd9e5e71a485820c03d53468d760c375423f63b6).  Anytime the agent makes a claim or a suggestion, I usually prompt to confirm the claim/suggestion with a unit test – this is like bringing the “chain-of-code” prompting technique into the development and review process.
 
-Before making a final commit, stage all the changes from the agent-based review commands and run one last /review in Plan mode, and commit the changes.  Alternatively (or additionally) I’ll use a self-reflection prompt to perform a review.  Assuming all the code is committed, in a /new session, prompt the agent to “Review the most recent commits, explain what changed, explain why it changed, and explain how the code works.”  You can then follow up with something like, “Given those summaries and the original specification, are there any issues in the code that need to be fixed or improvements that should be made?” – have the agent apply the changes as you see fit.
+Before making a final commit, stage all the changes from the agent-based review commands and run one last /review in Plan mode, and commit the changes.  Alternatively (or additionally) I’ll use a self-reflection prompt to perform a review.  Assuming all the code is committed, in a `/new` session, prompt the agent to “Review the most recent commits, explain what changed, explain why it changed, and explain how the code works.”  You can then follow up with something like, “Given those summaries and the original specification, are there any issues in the code that need to be fixed or improvements that should be made?” – have the agent apply the changes as you see fit.
+
 The code and specifications are now the absolute best that the agents could produce – it’s time for us to dig deeper into the artifacts.
 
 #### 6\. Your review
 
-As mentioned earlier, humans learn by embedding experiences into memories, and a special kind of learning occurs when we write.  During our review, our goal is to engage this active learning as much as possible.  If Section 1 is the most important step (drawing a diagram, writing invariants first), this section is the second most important.  We need to know what we’re shipping, we need to feel ownership over the artifacts, we need to trust the foundations and the work built upon them.
+As mentioned earlier, humans learn by embedding experiences into memories, and a special kind of learning occurs when we write.  During our review, our goal is to engage this active learning as much as possible.  If Section 1 is the most important step (drawing a diagram, writing invariants first), this section is the second most important.  We need to know what we’re shipping, we need to feel ownership over the artifacts, we need to trust the foundations and the work built upon them.  A fully-integrated [harness](https://www.datadoghq.com/blog/ai/harness-first-agents/) can provide much of this confidence, but without that in place we need to perform a manual review.
+
 Let’s appreciate where we are at the moment- We started off by engaging our active learning and critical thinking.  We drew an initial system diagram and wrote out the core invariants (what must be true for the system to be correct) and requirements (what must be true for the system to be successful) – concrete artifacts *we* created.  Everything else in this process flowed from that initial step- we used those invariants to guide our exploration, they seeded and shaped the specifications, and they were pulled through the implementation and tests.
+
 And guess what… we’re going to go right back to the invariants for the review.  I think deep code reviews are very personal things – you know best how you learn and what techniques will work for you.  What follows in this section are some techniques to try that have helped me (specifically when using coding agents).
 
 **An initial stroll**
+
 The first thing I do is take a quick read through all the artifacts – the specification docs, the code, and the tests.  I’m trying to get familiar with the final change, trying to get a sense of “what” and “where”.  Once I feel like I understand the rough shape of the change, I begin…
 
 **Two panes**
+
 I start by splitting my screen in half – the initial invariants on the left, the generated openspec docs on the right.  I track each initial invariant to information captured in the spec.  This should be relatively quick (since we did a similar check in section 3 when we made the specs).  I then do a deeper read of the spec documents to make sure I didn’t miss anything (and that anything extra in the doc represents what I intended in the design space).
 The majority of defects shipped to production are errors in validation (“we built the wrong thing”) – my goal is to ensure the specs capture “the right thing”/the thing we intended to build.
 
-Next we need to see if the specs and the code align.  Let’s ask the Build agent to assemble some evidence for us (adjust the prompt as needed for your implementation and paths):
+Next we need to see if the specs and the code align.  Let’s ask the Build agent to assemble some [evidence](https://github.com/adzerk/spec-driven-workshop/blob/main-more/commands/spec-evidence.md) for us (adjust the prompt as needed for your implementation and paths):
 
 ````
 Update @openspec/specs/discrete-event-simulation/spec.md such that each Scenario has a new subsection called Evidence (written as `##### Evidence`).
@@ -452,24 +490,26 @@ var s = Simulation.create(null); //=> throws NullPointerException
 ```
 ````
 
-After that update, I shift the specs to the left side of the screen and open the code on the right side of the screen.  I trace each spec fragment into the code.  This might seem a bit tedious at first, but it helps me understand how the invariants/requirements got mapped into code decisions (I wish code was commented with relevant spec sections, but the specs aren’t ordered/numbered by default).  As I’m doing that, I also ensure the code documents all pre/post-conditions and invariants.  I also correct the source code comments (or rewrite them slightly) in my own language.
+After that update, I shift the specs to the left side of the screen and open the code on the right side of the screen.  I trace each spec fragment into the code (using the "evidence").  This might seem a bit tedious at first, but it helps me understand how the invariants/requirements got mapped into code decisions (In a production setting, it's STRONGLY advised you use [spec-traceability](https://github.com/adzerk/spec-driven-workshop/blob/main-more/docs/spec_traceability.md) to create strong link from spec, to code, to test.  This also makes review and helps to mechanize/automate assurance).  As I’m tracing through the code, I also ensure the code documents all pre/post-conditions and invariants.  I also correct the source code comments (or rewrite them slightly) in my own language.
+
 I then shift the code to the left side and view the tests on the right side of the screen.  I’m looking to make sure the tests clearly exercise the invariants, the edge-cases, and map back to the specifications in the original doc.  I want to see a clean thread from the invariants in our initial design through every artifact generated.
 
 **Updates and adjustments**
-After I’ve reviewed the code, I might make some more adjustments to the code base – adding functions, renaming things, and small edits.  I tend to also add some additional test cases or additional checks (just to get my hands in there).  I also adjust the JML specs (sometimes making them a bit looser, sometimes making them more precise) – this is a nice way to manipulate/learn the code with a direct relationship to the invariants.
+
+After I’ve reviewed the code, I might make some more adjustments to the code base – adding functions, renaming things, and small edits.  I tend to also add some additional test cases or additional checks (just to get my hands in there; to have an experience).  I also adjust the JML specs (sometimes making them a bit looser, sometimes making them more precise) – this is a nice way to manipulate/learn the code with a direct relationship to the invariants.
 If there are any new failing tests, I will have the agent update the code until the tests all pass.
 
 **Interaction**
+
 I then explore the code interactively, usually using JShell or Clojure (and sometimes the debugger).  I build up a “rich comment” where I explain the feature in a literate programming style and build up example executions, walking through a tutorial step-by-step.  In all honesty, this is what cements it for me – being able to “play” with the change and build it up piece-by-piece.  I’ve created a \`docs/tutorials\` directory in most of my projects to start saving these interactive files/sessions, or added more \`Examples\` in the \`Evidence\` of a specification’s Scenario.
-I’m still looking for better ways to record a JShell session (by default it records only the inputs; no comments or session outputs).
 
 When you’re done, commit all your work to the branch.  Time to wrap up\!
 
 #### 7\. Complete and archive
 
-Run make check one last time – this will run the formatter, compiler, full test-suite, and all static analyzers (optionally, you could run make check-jml instead if you want to include running the verification tooling too).
+Run `make check` one last time – this will run the formatter, compiler, full test-suite, and all static analyzers (optionally, you could run `make check-jml` instead if you want to include running the verification tooling too).
 
-Launch your coding agent again, switch to the Build agent, and use the /opsx-archive command to complete the spec.  Follow the instructions in the agent (select the des spec and fully Sync the spec).  This will merge all the spec changes into the main living documentation ([openspec/specs](https://github.com/adzerk/spec-driven-workshop/tree/des-pdg_step7/openspec)).  Stage and commit all the work.
+Launch your coding agent again, switch to the Build agent, and use the `/opsx-archive` command to complete the spec.  Follow the instructions in the agent (select the des spec and fully Sync the spec).  This will merge all the spec changes into the main living documentation ([openspec/specs](https://github.com/adzerk/spec-driven-workshop/tree/des-pdg_step7/openspec)).  You might want to adjust the formatting of the `spec.md` file to your taste.  Stage and commit all the work.
 
 This is the final chapter for this change, but now you’re ready to take on anything.
 Let’s continue the lab and build an HTTP service for our simulation library.
@@ -505,7 +545,7 @@ opencode run -m "github-copilot/gpt-5.4" --agent "build" "Design and plan a simp
   * Take a look at how Garry Tan [describes gstack](https://github.com/garrytan/gstack?tab=readme-ov-file#the-sprint) as a process (with some commands/skills to make it easier) – does it look familiar?
     This is nearly the same process described in this doc and Garry has followed the advice in this doc – make commands for prompts or techniques you use often.  Learning the basics of this approach to software development with agents will let you evaluate and decide what is best for you, your project, and your team.
     I strongly suggest that you don’t use pre-packaged skills/frameworks until you’re comfortable operating with the basics.  These frameworks will often bloat your base system prompt, clutter your context, and drive up token usage; There’s not a great way to tightly control how the framework influences your results/interaction.  That said, it can be very useful to steal/borrow ideas from their commands/skills when writing your own.  It’s also worth looking at [skills.sh](http://skills.sh) to find inspiration for your own commands/skills.
-* What’s the difference between spec-driven development and “lightweight formal methods” (excluding the use of agents)
+* What’s the difference between spec-driven development and “[lightweight formal methods](https://github.com/adzerk/spec-driven-workshop/blob/main-more/docs/lfm.md)” (excluding the use of agents)
   * There’s only one main difference (and one additional implication).  In lightweight formal methods, there’s an additional step after specs and before implementation: You create a “prototype”.  This prototype must be single-threaded, fully deterministic, and completely value-oriented – the goal is to show that all invariants hold in this prototype (through any combination of types, unit tests, property-based tests, verification, whatever) and to see how design decisions work when practically applied.
     This prototype will become your “executable model” and live in your repo for the life of your project.  It can be implemented in something like Lean or WhyML, but more commonly it’s implemented in your target language (Rust, Java, whatever) because it needs to be maintained by the core engineering team working on the system.
     You then implement the real system with all the production concerns (concurrency, performance, etc.), but the core of your production system remains deterministic.  You write property-based tests that show your production system and the executable model produce the same outputs given the same inputs – this is called “differential testing” (a model-based testing technique).
@@ -541,7 +581,7 @@ Extra reading for the eager learner:
 * [Oxide and Friends podcast: Engineering rigor in the LLM age](https://oxide-and-friends.transistor.fm/episodes/engineering-rigor-in-the-llm-age) (2026)
 * [Beyond vibe coding: the case for spec-driven AI development \- The New Stack](https://thenewstack.io/vibe-coding-spec-driven/)
 * [How to Write a Good Spec for AI Agents \- O’Reilly](https://www.oreilly.com/radar/how-to-write-a-good-spec-for-ai-agents/)
-* [How should we build software systems](https://docs.google.com/document/d/14PRUdpJtddpzV0Ez5DIYHGehvWTST0h6IqKk2rJcaUg) \- pdg’s notes/post from 2023/2024
+* [How should we build software systems](https://docs.google.com/document/d/1YTC6J_km0SpKfKfYEASlD2tttfBcKJEb5fHh4xGqwog/edit) \- pdg’s notes/post from 2023/2024 (make sure you read a version where you can see the comments)
   * [A fundamental duality in software engineering](https://cacm.acm.org/blogcacm/a-fundamental-duality-of-software-engineering/%20) (2012)
   * [A direct path to dependable software](https://cacm.acm.org/research/a-direct-path-to-dependable-software/) (2009)
   * Applied lightweight formal methods
