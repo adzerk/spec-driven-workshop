@@ -27,6 +27,8 @@ jobs:
           bundler-cache: true
           working-directory: docs
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - name: Build
         working-directory: docs
         run: bundle exec jekyll build
