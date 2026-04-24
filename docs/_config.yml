@@ -1,5 +1,7 @@
 title: Spec-Driven Development Workshop
 description: A workshop on spec-driven development and lightweight formal methods.
+url: "https://adzerk.github.io"
+baseurl: "/spec-driven-workshop"
 remote_theme: mmistakes/minimal-mistakes@4.26.2
 minimal_mistakes_skin: default
 
