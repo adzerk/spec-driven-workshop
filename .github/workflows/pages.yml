@@ -2,9 +2,9 @@ name: Deploy GitHub Pages
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    branches:
+      - main
+      - worktree-github-pages
   workflow_dispatch:
 
 permissions:
