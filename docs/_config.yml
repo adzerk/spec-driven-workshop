@@ -5,6 +5,9 @@ baseurl: "/spec-driven-workshop"
 remote_theme: mmistakes/minimal-mistakes@4.26.2
 minimal_mistakes_skin: default
 
+atom_feed:
+  hide: true
+
 plugins:
   - jekyll-optional-front-matter
   - jekyll-relative-links
