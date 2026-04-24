@@ -1,0 +1,7 @@
+main:
+  - title: "Getting Started"
+    url: /guide.html
+  - title: "Reference"
+    url: /reference.html
+  - title: "GitHub"
+    url: https://github.com/adzerk/spec-driven-workshop

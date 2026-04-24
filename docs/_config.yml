@@ -1,0 +1,58 @@
+title: Spec-Driven Development Workshop
+description: A workshop on spec-driven development and lightweight formal methods.
+url: "https://adzerk.github.io"
+baseurl: "/spec-driven-workshop"
+remote_theme: mmistakes/minimal-mistakes@4.26.2
+minimal_mistakes_skin: default
+
+atom_feed:
+  hide: true
+
+plugins:
+  - jekyll-optional-front-matter
+  - jekyll-relative-links
+  - jekyll-include-cache
+  - jekyll-remote-theme
+
+optional_front_matter:
+  remove_originals: true
+
+relative_links:
+  enabled: true
+  collections: false
+
+kramdown:
+  input: GFM
+  auto_ids: true
+
+defaults:
+  - scope:
+      path: "GettingStartedWithSpec-DrivenDev.md"
+    values:
+      layout: single
+      title: "Getting Started with Spec-Driven Development"
+      hide_page_title: true
+      toc: true
+      toc_sticky: true
+      toc_label: "On this page"
+      permalink: /guide.html
+  - scope:
+      path: "reference.md"
+    values:
+      layout: single
+      title: "Reference"
+      toc: true
+      toc_sticky: true
+      toc_label: "On this page"
+      permalink: /reference.html
+  - scope:
+      path: "index.md"
+    values:
+      layout: single
+      title: "Home"
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - vendor/
+  - _site/
