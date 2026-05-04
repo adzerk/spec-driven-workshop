@@ -28,9 +28,9 @@ import java.util.Set;
  * <p>Example:
  *
  * <pre>{@code
- * SpecTraceRuntime.resetExecution();
+ * SpecTraceRuntime.sessionOpened();
  * SpecTraceRuntime.validateAndRecord(testMethod);
- * SpecTraceRuntime.assertCoverageSatisfied();
+ * SpecTraceRuntime.sessionClosed();
  * }</pre>
  */
 final class SpecTraceRuntime {
@@ -43,18 +43,39 @@ final class SpecTraceRuntime {
     private static Path catalogRoot;
     private static SpecCatalog catalog;
     private static final Set<String> exercisedIdentifiers = new LinkedHashSet<>();
+    private static boolean sessionActive;
 
     private SpecTraceRuntime() {}
 
     /**
-     * Clears per-run execution state.
+     * Opens a new launcher-session lifecycle boundary.
      *
-     * <p>Postconditions: the exercised identifier set is empty. The catalog cache is intentionally
-     * retained so repeated validations in the same launcher session do not rescan the filesystem.
+     * <p>Postconditions: exercised identifiers are cleared once for the new session.
      */
-    static void resetExecution() {
+    static void sessionOpened() {
         synchronized (LOCK) {
             exercisedIdentifiers.clear();
+            sessionActive = true;
+        }
+    }
+
+    /**
+     * Closes the current launcher-session lifecycle boundary.
+     *
+     * <p>Postconditions: coverage is asserted exactly once per session close when enabled, and
+     * exercised identifiers are cleared for the next session.
+     */
+    static void sessionClosed() {
+        synchronized (LOCK) {
+            if (!sessionActive) {
+                exercisedIdentifiers.clear();
+                return;
+            }
+        }
+        assertCoverageSatisfied();
+        synchronized (LOCK) {
+            exercisedIdentifiers.clear();
+            sessionActive = false;
         }
     }
 

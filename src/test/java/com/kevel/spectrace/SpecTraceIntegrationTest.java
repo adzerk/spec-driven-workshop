@@ -268,6 +268,57 @@ class SpecTraceIntegrationTest {
     }
 
     /**
+     * Verifies coverage accumulation across multiple execute invocations in one launcher session.
+     *
+     * @throws Exception if fixture setup fails unexpectedly
+     */
+    @Test
+    void coverageAccumulatesAcrossMultipleExecuteInvocationsInOneSession() throws Exception {
+        Path projectRoot = SpecTraceTestResources.copyResourceDirectory(
+                SpecTraceIntegrationTest.class, "spec-traceability/integration/project", tempDir.resolve("project"));
+
+        RunResult result = runMultiExecute(
+                projectRoot,
+                true,
+                List.of(
+                        List.of(DiscoverySelectors.selectClass(SpecTraceHarnessFixtures.JupiterFixtures.class)),
+                        List.of(
+                                DiscoverySelectors.selectClass(SpecTraceHarnessFixtures.PropertyFixtures.class),
+                                DiscoverySelectors.selectClass(SpecTraceHarnessFixtures.ReviewOnlyFixtures.class),
+                                DiscoverySelectors.selectClass(SpecTraceHarnessFixtures.CoverageFixtures.class))));
+
+        assertEquals(0, result.failedCount());
+    }
+
+    /**
+     * Verifies coverage failure in one session does not leak exercised ids into a later session.
+     *
+     * @throws Exception if fixture setup fails unexpectedly
+     */
+    @Test
+    void coverageStateIsIsolatedAcrossSessions() throws Exception {
+        Path projectRoot = SpecTraceTestResources.copyResourceDirectory(
+                SpecTraceIntegrationTest.class, "spec-traceability/integration/project", tempDir.resolve("project"));
+
+        RunResult first = runMultiExecute(
+                projectRoot,
+                true,
+                List.of(List.of(DiscoverySelectors.selectClass(SpecTraceHarnessFixtures.JupiterFixtures.class))));
+        assertEquals(1, first.failedCount());
+        assertTrue(first.firstFailureMessage().orElseThrow().contains("TRACE-PROPERTY"));
+
+        RunResult second = runMultiExecute(
+                projectRoot,
+                true,
+                List.of(List.of(
+                        DiscoverySelectors.selectClass(SpecTraceHarnessFixtures.PropertyFixtures.class),
+                        DiscoverySelectors.selectClass(SpecTraceHarnessFixtures.ReviewOnlyFixtures.class),
+                        DiscoverySelectors.selectClass(SpecTraceHarnessFixtures.CoverageFixtures.class))));
+        assertEquals(1, second.failedCount());
+        assertTrue(second.firstFailureMessage().orElseThrow().contains("TRACE-JUNIT"));
+    }
+
+    /**
      * Verifies that an empty catalog satisfies coverage vacuously.
      *
      * @throws Exception if fixture setup fails unexpectedly
@@ -329,12 +380,53 @@ class SpecTraceIntegrationTest {
             LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
                     .selectors(selectors)
                     .build();
-            try (LauncherSession session = LauncherFactory.openSession()) {
-                try {
+            try {
+                try (LauncherSession session = LauncherFactory.openSession()) {
                     session.getLauncher().execute(request, listener);
-                } catch (Throwable throwable) {
-                    executionFailure = throwable;
                 }
+            } catch (Throwable throwable) {
+                executionFailure = throwable;
+            }
+        } finally {
+            restoreProperty(SpecTraceRuntime.ROOT_PROPERTY, previousRoot);
+            restoreProperty(SpecTraceRuntime.COVERAGE_PROPERTY, previousCoverage);
+            restoreProperty("junit.platform.launcher.interceptors.enabled", previousInterceptors);
+        }
+
+        return new RunResult(listener, executionFailure);
+    }
+
+    /**
+     * Runs multiple execute invocations inside one launcher session.
+     *
+     * @param projectRoot temporary project root for the run; must be non-null
+     * @param coverageEnabled whether end-of-run coverage enforcement is enabled
+     * @param selectorBatches non-null per-execute selector groups
+     * @return summary of test outcomes and any launcher-level failure
+     */
+    private static RunResult runMultiExecute(
+            Path projectRoot, boolean coverageEnabled, List<List<? extends DiscoverySelector>> selectorBatches) {
+        String previousRoot = System.getProperty(SpecTraceRuntime.ROOT_PROPERTY);
+        String previousCoverage = System.getProperty(SpecTraceRuntime.COVERAGE_PROPERTY);
+        String previousInterceptors = System.getProperty("junit.platform.launcher.interceptors.enabled");
+        SummaryGeneratingListener listener = new SummaryGeneratingListener();
+        Throwable executionFailure = null;
+        try {
+            System.setProperty(SpecTraceRuntime.ROOT_PROPERTY, projectRoot.toString());
+            System.setProperty(SpecTraceRuntime.COVERAGE_PROPERTY, Boolean.toString(coverageEnabled));
+            System.setProperty("junit.platform.launcher.interceptors.enabled", "true");
+
+            try {
+                try (LauncherSession session = LauncherFactory.openSession()) {
+                    for (List<? extends DiscoverySelector> selectors : selectorBatches) {
+                        LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
+                                .selectors(selectors)
+                                .build();
+                        session.getLauncher().execute(request, listener);
+                    }
+                }
+            } catch (Throwable throwable) {
+                executionFailure = throwable;
             }
         } finally {
             restoreProperty(SpecTraceRuntime.ROOT_PROPERTY, previousRoot);
