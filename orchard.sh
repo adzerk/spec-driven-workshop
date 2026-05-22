@@ -54,12 +54,20 @@ if [[ ! -f "$DOCKERFILE" ]]; then
     exit 1
 fi
 
-# Rebuild if image doesn't exist or Dockerfile is newer than image
+# Rebuild if image doesn't exist or Dockerfile is newer than image.
+# -nt can't compare a file against a Docker timestamp string, so we extract
+# epoch seconds from both sides and compare numerically.
 NEEDS_BUILD=false
 if ! docker image inspect "$IMAGE_NAME" &>/dev/null 2>&1; then
     NEEDS_BUILD=true
-elif [[ "$DOCKERFILE" -nt "$(docker image inspect "$IMAGE_NAME" --format '{{.Created}}' 2>/dev/null || echo '2000-01-01')" ]]; then
-    NEEDS_BUILD=true
+else
+    DOCKERFILE_MTIME=$(stat -f %m "$DOCKERFILE")
+    IMAGE_CREATED=$(docker image inspect "$IMAGE_NAME" --format '{{.Created}}' 2>/dev/null)
+    # Strip fractional seconds and timezone suffix (handles both "…Z" and "….nnnZ" forms)
+    IMAGE_MTIME=$(date -j -f "%Y-%m-%dT%H:%M:%S" "${IMAGE_CREATED%%[.Z]*}" "+%s" 2>/dev/null || echo 0)
+    if [[ "$DOCKERFILE_MTIME" -gt "$IMAGE_MTIME" ]]; then
+        NEEDS_BUILD=true
+    fi
 fi
 
 if $NEEDS_BUILD; then
