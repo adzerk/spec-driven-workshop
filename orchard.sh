@@ -138,6 +138,18 @@ if [[ -z "${OPENAI_API_KEY:-}" ]] && [[ -f "${HOME}/.codex/auth.json" ]]; then
     info "Mounting Codex auth from ~/.codex/auth.json"
 fi
 
+# Extra bind mounts injected by callers (e.g. orchardw.sh).
+# ORCHARD_EXTRA_MOUNTS: newline-separated list of "host:container" path pairs.
+EXTRA_MOUNTS=()
+if [[ -n "${ORCHARD_EXTRA_MOUNTS:-}" ]]; then
+    while IFS= read -r _pair; do
+        [[ -z "$_pair" ]] && continue
+        _host="${_pair%%:*}"
+        _container="${_pair#*:}"
+        [[ -d "$_host" ]] && EXTRA_MOUNTS+=(-v "${_host}:${_container}")
+    done <<< "$ORCHARD_EXTRA_MOUNTS"
+fi
+
 docker run \
     --rm \
     -it \
@@ -146,6 +158,7 @@ docker run \
     -v "${PROJECT_DIR}:/workspace" \
     ${CLAUDE_CONFIG_MOUNT[@]+"${CLAUDE_CONFIG_MOUNT[@]}"} \
     ${CODEX_AUTH_MOUNT[@]+"${CODEX_AUTH_MOUNT[@]}"} \
+    ${EXTRA_MOUNTS[@]+"${EXTRA_MOUNTS[@]}"} \
     ${CREDS_ENV_FILE:+--env-file "$CREDS_ENV_FILE"} \
     --tmpfs /workspace/tooling/jdk-21.0.7+6:exec,uid=1000,gid=1000 \
     --tmpfs /workspace/tooling/openjml:exec,uid=1000,gid=1000 \
