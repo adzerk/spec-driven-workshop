@@ -138,6 +138,20 @@ if [[ -z "${OPENAI_API_KEY:-}" ]] && [[ -f "${HOME}/.codex/auth.json" ]]; then
     info "Mounting Codex auth from ~/.codex/auth.json"
 fi
 
+# ── Per-project persistent Claude volume ─────────────────────────────────────
+# Each PWD gets its own named volume so ~/.claude (chat history, settings) is
+# preserved across container sessions and compartmentalized per project.
+# Volume name: orchard-claude-<basename>-<8-char hash of full path>
+_vol_suffix=$(printf '%s' "$PROJECT_DIR" | md5 -q | cut -c1-8)
+CLAUDE_VOLUME="orchard-claude-$(basename "$PROJECT_DIR")-${_vol_suffix}"
+unset _vol_suffix
+if ! docker volume inspect "$CLAUDE_VOLUME" &>/dev/null 2>&1; then
+    docker volume create "$CLAUDE_VOLUME" > /dev/null
+    info "Created persistent Claude volume: ${CLAUDE_VOLUME}"
+else
+    info "Using existing Claude volume: ${CLAUDE_VOLUME}"
+fi
+
 # Extra bind mounts injected by callers (e.g. orchardw.sh).
 # ORCHARD_EXTRA_MOUNTS: newline-separated list of "host:container" path pairs.
 EXTRA_MOUNTS=()
@@ -159,6 +173,7 @@ docker run \
     ${CLAUDE_CONFIG_MOUNT[@]+"${CLAUDE_CONFIG_MOUNT[@]}"} \
     ${CODEX_AUTH_MOUNT[@]+"${CODEX_AUTH_MOUNT[@]}"} \
     ${EXTRA_MOUNTS[@]+"${EXTRA_MOUNTS[@]}"} \
+    -v "${CLAUDE_VOLUME}:/home/orchard/.claude" \
     ${CREDS_ENV_FILE:+--env-file "$CREDS_ENV_FILE"} \
     --tmpfs /workspace/tooling/jdk-21.0.7+6:exec,uid=1000,gid=1000 \
     --tmpfs /workspace/tooling/openjml:exec,uid=1000,gid=1000 \

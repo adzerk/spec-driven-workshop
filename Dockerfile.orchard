@@ -225,6 +225,7 @@ RUN useradd -m -s /bin/bash orchard \
     && mkdir -p /home/orchard/.cache \
     && mkdir -p /home/orchard/.config \
     && mkdir -p /home/orchard/.m2 \
+    && mkdir -p /home/orchard/.claude \
     && cp -r /root/.m2/repository /home/orchard/.m2/repository \
     && chown -R orchard:orchard /home/orchard
 USER orchard
