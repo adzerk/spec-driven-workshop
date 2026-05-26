@@ -191,5 +191,7 @@ docker run \
     --cap-add DAC_OVERRIDE \
     --cap-add FOWNER \
     ${AGENT_ENV[@]+"${AGENT_ENV[@]}"} \
+    -e "ORCHARD_PROJECT=$(basename "$PROJECT_DIR")" \
+    -e 'PROMPT_COMMAND=PS1="(\[\033[1;32m\]\u@\h\[\033[0m\])[\[\033[1;34m\]${ORCHARD_PROJECT}\[\033[0m\]] \w\$ "' \
     "$IMAGE_NAME" \
     "${@:-bash}"
