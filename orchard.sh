@@ -147,6 +147,14 @@ CLAUDE_VOLUME="orchard-claude-$(basename "$PROJECT_DIR")-${_vol_suffix}"
 unset _vol_suffix
 if ! docker volume inspect "$CLAUDE_VOLUME" &>/dev/null 2>&1; then
     docker volume create "$CLAUDE_VOLUME" > /dev/null
+    # Docker creates new volume mount points as root:root. Fix ownership so the
+    # orchard user can write into it without needing elevated capabilities.
+    docker run --rm \
+        -v "${CLAUDE_VOLUME}:/home/orchard/.claude" \
+        --user root \
+        --entrypoint "" \
+        "$IMAGE_NAME" \
+        chown orchard:orchard /home/orchard/.claude
     info "Created persistent Claude volume: ${CLAUDE_VOLUME}"
 else
     info "Using existing Claude volume: ${CLAUDE_VOLUME}"
