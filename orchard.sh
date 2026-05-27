@@ -161,16 +161,48 @@ else
 fi
 
 # Extra bind mounts injected by callers (e.g. orchardw.sh).
-# ORCHARD_EXTRA_MOUNTS: newline-separated list of "host:container" path pairs.
+# ORCHARD_EXTRA_MOUNTS: newline-separated list of host paths (or "host:ignored"
+# pairs for backwards compat). Each repo is mounted at /repos/<basename>.
 EXTRA_MOUNTS=()
+EXTRA_CONTAINER_PATHS=()
 if [[ -n "${ORCHARD_EXTRA_MOUNTS:-}" ]]; then
     while IFS= read -r _pair; do
         [[ -z "$_pair" ]] && continue
         _host="${_pair%%:*}"
-        _container="${_pair#*:}"
-        [[ -d "$_host" ]] && EXTRA_MOUNTS+=(-v "${_host}:${_container}")
+        if [[ -d "$_host" ]]; then
+            _container="/repos/$(basename "$_host")"
+            EXTRA_MOUNTS+=(-v "${_host}:${_container}")
+            EXTRA_CONTAINER_PATHS+=("$_container")
+        fi
     done <<< "$ORCHARD_EXTRA_MOUNTS"
 fi
+
+# Generate orchard.code-workspace when extra repos are mounted so VS Code
+# opens all roots automatically via "Dev Containers: Attach to Running Container".
+WORKSPACE_FILE="${PROJECT_DIR}/orchard.code-workspace"
+if [[ ${#EXTRA_CONTAINER_PATHS[@]} -gt 0 ]]; then
+    {
+        printf '{\n  "folders": [\n    { "path": "/workspace" }'
+        for _cpath in "${EXTRA_CONTAINER_PATHS[@]}"; do
+            printf ',\n    { "path": "%s" }' "$_cpath"
+        done
+        printf '\n  ]\n}\n'
+    } > "$WORKSPACE_FILE"
+    info "Generated orchard.code-workspace with ${#EXTRA_CONTAINER_PATHS[@]} extra repo(s)"
+    # Keep the generated file out of git
+    _GITIGNORE="${PROJECT_DIR}/.gitignore"
+    if [[ -f "$_GITIGNORE" ]] && ! grep -qxF 'orchard.code-workspace' "$_GITIGNORE"; then
+        echo 'orchard.code-workspace' >> "$_GITIGNORE"
+        info "Added orchard.code-workspace to .gitignore"
+    elif [[ ! -f "$_GITIGNORE" ]]; then
+        echo 'orchard.code-workspace' > "$_GITIGNORE"
+    fi
+    unset _GITIGNORE
+    unset _cpath
+else
+    [[ -f "$WORKSPACE_FILE" ]] && rm -f "$WORKSPACE_FILE"
+fi
+unset WORKSPACE_FILE
 
 docker run \
     --rm \

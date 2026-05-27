@@ -37,6 +37,9 @@ recording.jfr
 # OS X
 .DS_Store
 
+# Orchard (generated, local-only)
+orchard.code-workspace
+
 # Jekyll / GitHub Pages
 docs/_site/
 docs/.jekyll-cache/
