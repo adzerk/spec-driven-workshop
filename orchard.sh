@@ -161,16 +161,17 @@ else
 fi
 
 # Extra bind mounts injected by callers (e.g. orchardw.sh).
-# ORCHARD_EXTRA_MOUNTS: newline-separated list of host paths (or "host:ignored"
-# pairs for backwards compat). Each repo is mounted at /repos/<basename>.
+# ORCHARD_EXTRA_MOUNTS: newline-separated list of "host:container" pairs.
+# Bare host paths (no colon) fall back to /repos/<basename>.
 EXTRA_MOUNTS=()
 EXTRA_CONTAINER_PATHS=()
 if [[ -n "${ORCHARD_EXTRA_MOUNTS:-}" ]]; then
     while IFS= read -r _pair; do
         [[ -z "$_pair" ]] && continue
         _host="${_pair%%:*}"
+        _container="${_pair#*:}"
+        [[ "$_container" == "$_pair" ]] && _container="/repos/$(basename "$_host")"
         if [[ -d "$_host" ]]; then
-            _container="/repos/$(basename "$_host")"
             EXTRA_MOUNTS+=(-v "${_host}:${_container}")
             EXTRA_CONTAINER_PATHS+=("$_container")
         fi
