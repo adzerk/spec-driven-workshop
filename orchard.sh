@@ -94,6 +94,9 @@ fi
 if [[ -n "${OPENAI_API_KEY:-}" ]]; then
     AGENT_ENV+=(-e "OPENAI_API_KEY=${OPENAI_API_KEY}")
 fi
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    AGENT_ENV+=(-e "GITHUB_TOKEN=${GITHUB_TOKEN}")
+fi
 
 # Extract Claude Code OAuth credentials from macOS Keychain and pass them to the
 # container via a temp file (not a -e env var, which would be visible in docker inspect).
