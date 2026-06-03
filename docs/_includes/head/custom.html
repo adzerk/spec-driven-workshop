@@ -1,3 +1,350 @@
 {% if page.hide_page_title %}
 <style>.page__title { display: none; }</style>
 {% endif %}
+
+<!-- Dark Mode Styles and Toggle -->
+<style>
+/* Dark mode color overrides for Minimal Mistakes theme */
+html.dark {
+  --text-color: #e0e0e0;
+  --background-color: #121212;
+  --link-color: #64b5f6;
+}
+
+html.dark body {
+  background-color: #121212 !important;
+  color: #e0e0e0 !important;
+}
+
+html.dark a {
+  color: #64b5f6 !important;
+}
+
+html.dark a:visited {
+  color: #64b5f6 !important;
+}
+
+html.dark code,
+html.dark pre {
+  background-color: #1e1e1e !important;
+  color: #e0e0e0 !important;
+}
+
+html.dark .notice {
+  background-color: #1e1e1e !important;
+  color: #e0e0e0 !important;
+  border-color: #333 !important;
+}
+
+html.dark .page__content blockquote {
+  border-left-color: #64b5f6 !important;
+  color: #b0bec5 !important;
+}
+
+html.dark table {
+  background-color: #1e1e1e !important;
+  color: #e0e0e0 !important;
+  border-color: #333 !important;
+}
+
+html.dark th,
+html.dark td {
+  border-color: #333 !important;
+}
+
+html.dark .sidebar {
+  background-color: transparent !important;
+}
+
+html.dark .masthead {
+  background-color: #1a1a1a !important;
+  border-color: #333 !important;
+}
+
+html.dark .greedy-nav {
+  background-color: #1a1a1a !important;
+}
+
+html.dark .page__footer {
+  background-color: #1a1a1a !important;
+  color: #b0bec5 !important;
+}
+
+/* Dark mode TOC and Sidebar Specific Styles */
+html.dark .toc {
+  background-color: #1a1a1a !important;
+  border: 1px solid #2a2a2a !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  -webkit-box-shadow: none !important;
+}
+
+html.dark .toc__menu {
+  background-color: #1a1a1a !important;
+}
+
+html.dark .toc__inner {
+  color: #b0bec5 !important;
+}
+
+html.dark .toc__link {
+  color: #b0bec5 !important;
+}
+
+html.dark .toc__link:hover {
+  color: #64b5f6 !important;
+}
+
+html.dark .toc__link.active {
+  color: #64b5f6 !important;
+  font-weight: 600;
+  background-color: #1e3a4a !important;
+  border-radius: 0.25rem;
+}
+
+html.dark .toc__menu li > a.active {
+  background-color: #1e3a4a !important;
+}
+
+html.dark .toc__menu li:has(> a.active) {
+  background-color: #1e3a4a !important;
+}
+
+/* Override light grey background on TOC items - may be from parent li or pseudo-elements */
+html.dark .toc__menu li {
+  background-color: transparent !important;
+}
+
+html.dark .toc__menu li a {
+  background-color: transparent !important;
+}
+
+html.dark .toc__menu li a::before,
+html.dark .toc__menu li a::after {
+  background-color: transparent !important;
+}
+
+/* Catch-all for any highlighted/active TOC item background */
+html.dark .toc__menu li[data-active],
+html.dark .toc__menu li.active {
+  background-color: transparent !important;
+}
+
+html.dark .toc__menu li[data-active] a,
+html.dark .toc__menu li.active a {
+  background-color: #1e3a4a !important;
+}
+
+/* Override theme's .toc .active a light grey background */
+html.dark .toc .active a {
+  background-color: #1e3a4a !important;
+  color: #64b5f6 !important;
+}
+
+html.dark .nav__list {
+  color: #b0bec5 !important;
+}
+
+html.dark .nav__list a {
+  color: #b0bec5 !important;
+}
+
+html.dark .nav__list a:hover {
+  color: #64b5f6 !important;
+}
+
+html.dark .sidebar__right {
+  background-color: transparent !important;
+  border-left: none !important;
+}
+
+/* TOC item separators */
+html.dark .toc__list li {
+  border-bottom-color: #242424 !important;
+}
+
+html.dark .toc__list li:last-child {
+  border-bottom-color: transparent !important;
+}
+
+html.dark .toc__menu a {
+  border-bottom-color: #242424 !important;
+}
+
+/* Theme Toggle Button Styles */
+.theme-toggle-btn {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 999;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  background: transparent;
+  border: 1px solid rgba(0,0,0,0.2);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
+  padding: 0;
+  margin: 0;
+}
+
+.theme-toggle-btn:hover {
+  background-color: rgba(0,0,0,0.05);
+}
+
+.theme-toggle-btn:focus {
+  outline: 2px solid #333;
+  outline-offset: 2px;
+}
+
+.theme-toggle-btn:active {
+  transform: scale(0.92);
+}
+
+html.dark .theme-toggle-btn {
+  border-color: rgba(255,255,255,0.3);
+}
+
+html.dark .theme-toggle-btn:hover {
+  background-color: rgba(255,255,255,0.1);
+}
+
+html.dark .theme-toggle-btn:focus {
+  outline-color: #e0e0e0;
+}
+
+.theme-toggle-icon {
+  display: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+  opacity: 1;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.theme-toggle-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: inherit;
+}
+
+/* Sun icon (shown in light mode) */
+html:not(.dark) .theme-toggle-icon.sun {
+  display: block;
+  color: #333;
+  opacity: 1;
+  transform: rotate(0deg);
+}
+
+html:not(.dark) .theme-toggle-icon.sun:active {
+  transform: rotate(90deg);
+}
+
+/* Moon icon (shown in dark mode) */
+html.dark .theme-toggle-icon.moon {
+  display: block;
+  color: #f0d858;
+  opacity: 1;
+  transform: rotate(0deg);
+}
+
+html.dark .theme-toggle-icon.moon:active {
+  transform: rotate(-90deg);
+}
+</style>
+
+<!-- Theme Toggle Button (will be inserted into nav via JS) -->
+<button class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+  <!-- Sun Icon -->
+  <span class="theme-toggle-icon sun">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="5"/>
+      <line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+      <line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </span>
+  <!-- Moon Icon -->
+  <span class="theme-toggle-icon moon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+    </svg>
+  </span>
+</button>
+
+<script>
+(function() {
+  const STORAGE_KEY = 'theme-preference';
+  const DARK_CLASS = 'dark';
+  const btn = document.getElementById('theme-toggle');
+  let html = document.documentElement;
+
+  // Get the initial theme preference
+  function getInitialTheme() {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored === 'light' || stored === 'dark') {
+      return stored;
+    }
+    // Check system preference
+    try {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    } catch (e) {
+      return 'light';
+    }
+  }
+
+  // Apply theme to the document
+  function applyTheme(theme) {
+    if (theme === 'dark') {
+      html.classList.add(DARK_CLASS);
+    } else {
+      html.classList.remove(DARK_CLASS);
+    }
+  }
+
+  // Initialize theme on page load
+  function init() {
+    const theme = getInitialTheme();
+    applyTheme(theme);
+    updateButtonState(theme);
+  }
+
+  // Update button aria-label and state
+  function updateButtonState(theme) {
+    const isDark = theme === 'dark';
+    btn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+    btn.setAttribute('title', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+  }
+
+  // Toggle theme on button click
+  btn.addEventListener('click', function() {
+    const currentTheme = html.classList.contains(DARK_CLASS) ? 'dark' : 'light';
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    applyTheme(newTheme);
+    localStorage.setItem(STORAGE_KEY, newTheme);
+    updateButtonState(newTheme);
+  });
+
+  // Initialize on DOM ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
