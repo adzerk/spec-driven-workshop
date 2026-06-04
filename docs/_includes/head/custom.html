@@ -16,6 +16,17 @@ html.dark body {
   color: #e0e0e0 !important;
 }
 
+/* Text selection — cohesive with TOC active accent */
+html.dark ::selection {
+  background-color: #1e3a4a !important;
+  color: #ffffff !important;
+}
+
+html.dark ::-moz-selection {
+  background-color: #1e3a4a !important;
+  color: #ffffff !important;
+}
+
 html.dark a {
   color: #64b5f6 !important;
 }
@@ -28,6 +39,161 @@ html.dark code,
 html.dark pre {
   background-color: #1e1e1e !important;
   color: #e0e0e0 !important;
+}
+
+/* Code block wrappers (Rouge) */
+html.dark .highlighter-rouge,
+html.dark .highlight,
+html.dark div.highlight,
+html.dark figure.highlight {
+  background-color: #1e1e1e !important;
+}
+
+html.dark .highlight pre,
+html.dark .highlight code {
+  background-color: transparent !important;
+}
+
+/* Rouge syntax highlighting — cohesive dark palette
+   Anchored on the existing accent (#64b5f6 link blue, #b0bec5 muted,
+   #e0e0e0 base, #1e3a4a TOC active). Strings get a soft green and
+   numbers a warm amber for legibility without breaking the scheme. */
+html.dark .highlight,
+html.dark .highlight * {
+  color: #e0e0e0;
+}
+
+/* Comments */
+html.dark .highlight .c,
+html.dark .highlight .ch,
+html.dark .highlight .cd,
+html.dark .highlight .cm,
+html.dark .highlight .cp,
+html.dark .highlight .cpf,
+html.dark .highlight .c1,
+html.dark .highlight .cs {
+  color: #78909c !important;
+  font-style: italic;
+}
+
+/* Keywords */
+html.dark .highlight .k,
+html.dark .highlight .kc,
+html.dark .highlight .kd,
+html.dark .highlight .kn,
+html.dark .highlight .kp,
+html.dark .highlight .kr,
+html.dark .highlight .kt,
+html.dark .highlight .kv {
+  color: #64b5f6 !important;
+}
+
+/* Strings */
+html.dark .highlight .s,
+html.dark .highlight .sa,
+html.dark .highlight .sb,
+html.dark .highlight .sc,
+html.dark .highlight .dl,
+html.dark .highlight .sd,
+html.dark .highlight .s2,
+html.dark .highlight .se,
+html.dark .highlight .sh,
+html.dark .highlight .si,
+html.dark .highlight .sx,
+html.dark .highlight .sr,
+html.dark .highlight .s1,
+html.dark .highlight .ss {
+  color: #a5d6a7 !important;
+}
+
+/* Numbers */
+html.dark .highlight .m,
+html.dark .highlight .mb,
+html.dark .highlight .mf,
+html.dark .highlight .mh,
+html.dark .highlight .mi,
+html.dark .highlight .mx,
+html.dark .highlight .mo,
+html.dark .highlight .il {
+  color: #ffcc80 !important;
+}
+
+/* Names */
+html.dark .highlight .n,
+html.dark .highlight .na,
+html.dark .highlight .nc,
+html.dark .highlight .nd,
+html.dark .highlight .ne,
+html.dark .highlight .nf,
+html.dark .highlight .fm,
+html.dark .highlight .ni,
+html.dark .highlight .nl,
+html.dark .highlight .nn,
+html.dark .highlight .no,
+html.dark .highlight .nv,
+html.dark .highlight .vc,
+html.dark .highlight .vg,
+html.dark .highlight .vi,
+html.dark .highlight .vm,
+html.dark .highlight .nx,
+html.dark .highlight .py {
+  color: #e0e0e0 !important;
+}
+
+/* Built-ins, tags, attribute/option names — secondary accent */
+html.dark .highlight .nb,
+html.dark .highlight .bp,
+html.dark .highlight .nt {
+  color: #90caf9 !important;
+}
+
+/* Operators, punctuation, whitespace */
+html.dark .highlight .o,
+html.dark .highlight .ow,
+html.dark .highlight .p,
+html.dark .highlight .pi {
+  color: #b0bec5 !important;
+}
+
+html.dark .highlight .w {
+  color: inherit !important;
+}
+
+/* Errors */
+html.dark .highlight .err {
+  color: #ef9a9a !important;
+  background-color: transparent !important;
+}
+
+/* Generic / diff */
+html.dark .highlight .gd {
+  color: #ef9a9a !important;
+  background-color: #3a1f1f !important;
+}
+
+html.dark .highlight .gi {
+  color: #a5d6a7 !important;
+  background-color: #1e3a2a !important;
+}
+
+html.dark .highlight .gh,
+html.dark .highlight .gu {
+  color: #64b5f6 !important;
+  font-weight: 600;
+}
+
+html.dark .highlight .gs {
+  font-weight: 600;
+}
+
+html.dark .highlight .ge {
+  font-style: italic;
+}
+
+/* Line numbers gutter */
+html.dark .highlight .lineno,
+html.dark .highlight .gl {
+  color: #546e7a !important;
 }
 
 html.dark .notice {
