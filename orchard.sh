@@ -186,13 +186,9 @@ fi
 WORKSPACE_FILE="${PROJECT_DIR}/orchard.code-workspace"
 if [[ ${#EXTRA_CONTAINER_PATHS[@]} -gt 0 ]]; then
     {
-        printf '{\n  "folders": [\n    { "path": "/workspace" }'
-        for _cpath in "${EXTRA_CONTAINER_PATHS[@]}"; do
-            printf ',\n    { "path": "/repos/%s" }' "$(basename "$_cpath")"
-        done
-        printf '\n  ]\n}\n'
+        printf '{\n  "folders": [\n    { "path": "/workspace" },\n    { "path": "/repos" }\n  ]\n}\n'
     } > "$WORKSPACE_FILE"
-    info "Generated orchard.code-workspace with ${#EXTRA_CONTAINER_PATHS[@]} extra repo(s)"
+    info "Generated orchard.code-workspace with /repos root"
     # Keep the generated file out of git
     _GITIGNORE="${PROJECT_DIR}/.gitignore"
     if [[ -f "$_GITIGNORE" ]] && ! grep -qxF 'orchard.code-workspace' "$_GITIGNORE"; then
@@ -202,7 +198,6 @@ if [[ ${#EXTRA_CONTAINER_PATHS[@]} -gt 0 ]]; then
         echo 'orchard.code-workspace' > "$_GITIGNORE"
     fi
     unset _GITIGNORE
-    unset _cpath
 else
     [[ -f "$WORKSPACE_FILE" ]] && rm -f "$WORKSPACE_FILE"
 fi
