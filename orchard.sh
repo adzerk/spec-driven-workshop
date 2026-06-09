@@ -188,7 +188,7 @@ if [[ ${#EXTRA_CONTAINER_PATHS[@]} -gt 0 ]]; then
     {
         printf '{\n  "folders": [\n    { "path": "/workspace" }'
         for _cpath in "${EXTRA_CONTAINER_PATHS[@]}"; do
-            printf ',\n    { "path": "%s" }' "$_cpath"
+            printf ',\n    { "path": "/repos/%s" }' "$(basename "$_cpath")"
         done
         printf '\n  ]\n}\n'
     } > "$WORKSPACE_FILE"
