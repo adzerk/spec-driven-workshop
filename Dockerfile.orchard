@@ -237,7 +237,7 @@ WORKDIR /workspace
 COPY --chmod=755 <<'ENTRYPOINT' /usr/local/bin/orchard-entry.sh
 #!/bin/bash
 export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
-export PATH="${JAVA_HOME}/bin:${PATH}"
+export PATH="${JAVA_HOME}/bin:${HOME}/.local/bin:${PATH}"
 
 # Detect JDK 25 for Fray (the mvn wrapper references FRAY_JDK_HOME)
 for d in /usr/lib/jvm/temurin-25-*; do
