@@ -54,12 +54,20 @@ if [[ ! -f "$DOCKERFILE" ]]; then
     exit 1
 fi
 
-# Rebuild if image doesn't exist or Dockerfile is newer than image
+# Rebuild if image doesn't exist or Dockerfile is newer than image.
+# -nt can't compare a file against a Docker timestamp string, so we extract
+# epoch seconds from both sides and compare numerically.
 NEEDS_BUILD=false
 if ! docker image inspect "$IMAGE_NAME" &>/dev/null 2>&1; then
     NEEDS_BUILD=true
-elif [[ "$DOCKERFILE" -nt "$(docker image inspect "$IMAGE_NAME" --format '{{.Created}}' 2>/dev/null || echo '2000-01-01')" ]]; then
-    NEEDS_BUILD=true
+else
+    DOCKERFILE_MTIME=$(stat -f %m "$DOCKERFILE")
+    IMAGE_CREATED=$(docker image inspect "$IMAGE_NAME" --format '{{.Created}}' 2>/dev/null)
+    # Strip fractional seconds and timezone suffix (handles both "…Z" and "….nnnZ" forms)
+    IMAGE_MTIME=$(date -j -f "%Y-%m-%dT%H:%M:%S" "${IMAGE_CREATED%%[.Z]*}" "+%s" 2>/dev/null || echo 0)
+    if [[ "$DOCKERFILE_MTIME" -gt "$IMAGE_MTIME" ]]; then
+        NEEDS_BUILD=true
+    fi
 fi
 
 if $NEEDS_BUILD; then
@@ -85,6 +93,9 @@ if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
 fi
 if [[ -n "${OPENAI_API_KEY:-}" ]]; then
     AGENT_ENV+=(-e "OPENAI_API_KEY=${OPENAI_API_KEY}")
+fi
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    AGENT_ENV+=(-e "GITHUB_TOKEN=${GITHUB_TOKEN}")
 fi
 
 # Extract Claude Code OAuth credentials from macOS Keychain and pass them to the
@@ -130,6 +141,68 @@ if [[ -z "${OPENAI_API_KEY:-}" ]] && [[ -f "${HOME}/.codex/auth.json" ]]; then
     info "Mounting Codex auth from ~/.codex/auth.json"
 fi
 
+# ── Per-project persistent Claude volume ─────────────────────────────────────
+# Each PWD gets its own named volume so ~/.claude (chat history, settings) is
+# preserved across container sessions and compartmentalized per project.
+# Volume name: orchard-claude-<basename>-<8-char hash of full path>
+_vol_suffix=$(printf '%s' "$PROJECT_DIR" | md5 -q | cut -c1-8)
+CLAUDE_VOLUME="orchard-claude-$(basename "$PROJECT_DIR")-${_vol_suffix}"
+unset _vol_suffix
+if ! docker volume inspect "$CLAUDE_VOLUME" &>/dev/null 2>&1; then
+    docker volume create "$CLAUDE_VOLUME" > /dev/null
+    # Docker creates new volume mount points as root:root. Fix ownership so the
+    # orchard user can write into it without needing elevated capabilities.
+    docker run --rm \
+        -v "${CLAUDE_VOLUME}:/home/orchard/.claude" \
+        --user root \
+        --entrypoint "" \
+        "$IMAGE_NAME" \
+        chown orchard:orchard /home/orchard/.claude
+    info "Created persistent Claude volume: ${CLAUDE_VOLUME}"
+else
+    info "Using existing Claude volume: ${CLAUDE_VOLUME}"
+fi
+
+# Extra bind mounts injected by callers (e.g. orchardw.sh).
+# ORCHARD_EXTRA_MOUNTS: newline-separated list of "host:container" pairs.
+# Bare host paths (no colon) fall back to /repos/<basename>.
+EXTRA_MOUNTS=()
+EXTRA_CONTAINER_PATHS=()
+if [[ -n "${ORCHARD_EXTRA_MOUNTS:-}" ]]; then
+    while IFS= read -r _pair; do
+        [[ -z "$_pair" ]] && continue
+        _host="${_pair%%:*}"
+        _container="${_pair#*:}"
+        [[ "$_container" == "$_pair" ]] && _container="/repos/$(basename "$_host")"
+        if [[ -d "$_host" ]]; then
+            EXTRA_MOUNTS+=(-v "${_host}:${_container}")
+            EXTRA_CONTAINER_PATHS+=("$_container")
+        fi
+    done <<< "$ORCHARD_EXTRA_MOUNTS"
+fi
+
+# Generate orchard.code-workspace when extra repos are mounted so VS Code
+# opens all roots automatically via "Dev Containers: Attach to Running Container".
+WORKSPACE_FILE="${PROJECT_DIR}/orchard.code-workspace"
+if [[ ${#EXTRA_CONTAINER_PATHS[@]} -gt 0 ]]; then
+    {
+        printf '{\n  "folders": [\n    { "path": "/workspace" },\n    { "path": "/repos" }\n  ]\n}\n'
+    } > "$WORKSPACE_FILE"
+    info "Generated orchard.code-workspace with /repos root"
+    # Keep the generated file out of git
+    _GITIGNORE="${PROJECT_DIR}/.gitignore"
+    if [[ -f "$_GITIGNORE" ]] && ! grep -qxF 'orchard.code-workspace' "$_GITIGNORE"; then
+        echo 'orchard.code-workspace' >> "$_GITIGNORE"
+        info "Added orchard.code-workspace to .gitignore"
+    elif [[ ! -f "$_GITIGNORE" ]]; then
+        echo 'orchard.code-workspace' > "$_GITIGNORE"
+    fi
+    unset _GITIGNORE
+else
+    [[ -f "$WORKSPACE_FILE" ]] && rm -f "$WORKSPACE_FILE"
+fi
+unset WORKSPACE_FILE
+
 docker run \
     --rm \
     -it \
@@ -138,6 +211,8 @@ docker run \
     -v "${PROJECT_DIR}:/workspace" \
     ${CLAUDE_CONFIG_MOUNT[@]+"${CLAUDE_CONFIG_MOUNT[@]}"} \
     ${CODEX_AUTH_MOUNT[@]+"${CODEX_AUTH_MOUNT[@]}"} \
+    ${EXTRA_MOUNTS[@]+"${EXTRA_MOUNTS[@]}"} \
+    -v "${CLAUDE_VOLUME}:/home/orchard/.claude" \
     ${CREDS_ENV_FILE:+--env-file "$CREDS_ENV_FILE"} \
     --tmpfs /workspace/tooling/jdk-21.0.7+6:exec,uid=1000,gid=1000 \
     --tmpfs /workspace/tooling/openjml:exec,uid=1000,gid=1000 \
@@ -147,5 +222,7 @@ docker run \
     --cap-add DAC_OVERRIDE \
     --cap-add FOWNER \
     ${AGENT_ENV[@]+"${AGENT_ENV[@]}"} \
+    -e "ORCHARD_PROJECT=$(basename "$PROJECT_DIR")" \
+    -e 'PROMPT_COMMAND=PS1="(\[\033[1;32m\]\u@\h\[\033[0m\])[\[\033[1;34m\]${ORCHARD_PROJECT}\[\033[0m\]] \w\$ "' \
     "$IMAGE_NAME" \
     "${@:-bash}"

@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     make \
     vim \
+    rlwrap \
     ca-certificates \
     gnupg \
     unzip \
@@ -224,8 +225,11 @@ RUN useradd -m -s /bin/bash orchard \
     && mkdir -p /home/orchard/.cache \
     && mkdir -p /home/orchard/.config \
     && mkdir -p /home/orchard/.m2 \
+    && mkdir -p /home/orchard/.claude \
+    && mkdir -p /repos \
     && cp -r /root/.m2/repository /home/orchard/.m2/repository \
-    && chown -R orchard:orchard /home/orchard
+    && chown -R orchard:orchard /home/orchard \
+    && chown orchard:orchard /repos
 USER orchard
 WORKDIR /workspace
 
@@ -233,7 +237,7 @@ WORKDIR /workspace
 COPY --chmod=755 <<'ENTRYPOINT' /usr/local/bin/orchard-entry.sh
 #!/bin/bash
 export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
-export PATH="${JAVA_HOME}/bin:${PATH}"
+export PATH="${JAVA_HOME}/bin:${HOME}/.local/bin:${PATH}"
 
 # Detect JDK 25 for Fray (the mvn wrapper references FRAY_JDK_HOME)
 for d in /usr/lib/jvm/temurin-25-*; do
