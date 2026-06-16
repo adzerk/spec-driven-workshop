@@ -62,7 +62,7 @@ For the initial setup, you can use the provided container (\`[orchard](/README.m
 
 ```shell
 npm install -g opencode-ai
-npm install -g fission-ai/openspec
+npm install -g @fission-ai/openspec
 ```
 
 If you’re using OpenCode, you’ll want to connect a provider (eg: like your [Copilot](https://opencode.ai/docs/providers/#github-copilot) subscription).  Change to a temp/scratch directory in your terminal and execute the `opencode` command.  Once opencode launches, type /connect (you’re going to be following the [Copilot Provider instructions](https://opencode.ai/docs/providers/#github-copilot)).
