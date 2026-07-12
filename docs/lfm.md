@@ -6,7 +6,7 @@ Lightweight formal methods are not about proving an entire system correct. They 
 
 Recent industrial examples converge on the same pattern. Brooker emphasizes [invariant-first reasoning](https://brooker.co.za/blog/2023/07/28/ds-testing.html). AWS/S3 shows that a live product team can [use executable reference models](https://www.amazon.science/publications/using-lightweight-formal-methods-to-validate-a-key-value-storage-node-in-amazon-s3) and automated checks without aiming for full formal verification. Cedar shows [verification-guided development](https://www.amazon.science/publications/how-we-built-cedar-a-verification-guided-approach) around an executable model, proofs, differential random testing, and property-based testing. Datadog/`redis-rust` shows the [same idea in the age of agents](https://www.datadoghq.com/blog/ai/harness-first-agents/): generated code must answer to objective, mechanical pass/fail checks, and the verification harness matters as much as the implementation.
 
-In a spec-driven and agent-assisted workflow, this matters even more. Code is cheaper to generate. Trust is not.
+In a spec-driven and agent-assisted workflow, this matters even more. Code is cheaper to generate, but trust is not.
 
 ## Direct evidence is best
 
@@ -60,6 +60,8 @@ That matters because:
 
 This is why system boundaries and assumptions matter. If correctness depends on an operator behaving a certain way, or on middleware preserving an ordering guarantee, that belongs in the argument too.
 
+Where possible, capture these invariants in formats that can be machines verified. Results like bounded model checking, deductive verification, software modeling with a tool like Alloy, or an artifact that can be analyzed by an SMT solver should be pursued.
+
 ## Build a small executable model
 
 Once the critical core is identified, build a small model of it. The model should simplify nonessential details so that the important behavior is obvious and checkable.
@@ -78,7 +80,7 @@ The model is not the product. It enables us to see how a design withstands reali
 
 Depending on the problem, the model might be:
 
-- a small executable program in the host language (Java, Rust, etc.);
+- a small executable program in the host language (Java, Rust, etc.) ideally coupled with deductive verification or model checking (OpenJML, JBMC, Creusot, Kani, LemmaScript);
 - a model in a verification-oriented language ([Alloy](https://practicalalloy.github.io/index.html), [TLA+](https://learntla.com/), Lean);
 - a state table or algebraic model for a narrow kernel;
 - a simplified protocol model for concurrency, recovery, or permissions.
@@ -105,6 +107,7 @@ This is why there is emphasis on deterministic systems, state machines, explicit
 ## Connect the model to the implementation
 
 A model is only useful if it remains connected to the real system. In practice, the most powerful bridge is differential testing: run the same operations, histories, or scenarios against both the model and the implementation and compare the results.
+Where possible, have the deterministic core shared between both the model and production system. This works best when the core is verified via deductive verification.
 
 This is often the highest-leverage step in the whole stack because it turns the model into a living oracle for the implementation.
 
@@ -124,7 +127,7 @@ A typical verification pyramid looks like this:
 
 1. explicit claims, assumptions, bounds, and invariants;
 2. a small executable model or other checkable spec;
-3. proofs or model checking for the tractable core;
+3. proofs, deductive verification, or model checking for the tractable core;
 4. differential testing between model and implementation;
 5. property-based tests over histories, sequences, and edge cases;
 6. concurrency testing, deterministic simulation, or fault injection where relevant;
@@ -198,7 +201,7 @@ Use agents to:
 - restate requirements as critical properties and invariants;
 - surface ambiguities and missing assumptions;
 - generate small reference models or skeleton specs;
-- draft contracts, assertions, specs, and test oracles;
+- draft contracts, assertions, specs (deductive verification), and test oracles;
 - generate differential, property-based, and concurrency tests;
 - explain failing seeds, shrunk counterexamples, or proof obligations;
 - summarize evidence gaps after each implementation pass.
@@ -276,6 +279,6 @@ They are a way of working: risk-driven, invariant-first, model-backed, evidence-
 
 If code generation is getting cheaper, the bottleneck shifts from producing code to producing trustworthy evidence.
 
-Lightweight formal methods are how we respond. We make the important properties explicit. We build small models of the critical core. We shape systems so they can be reasoned about. We connect model and implementation with differential testing. We layer tests, analysis, contracts, simulation, and proofs where they buy confidence. And we treat the resulting evidence as part of the product.
+Lightweight formal methods are how we respond. We make the important properties explicit. We build small models of the critical core. We shape systems so they can be reasoned about. We leverage machine-verified techniques like deductive verification where possible. We connect model and implementation with differential testing. We layer tests, analysis, contracts, simulation, and proofs where they buy confidence. And we treat the resulting evidence as part of the product.
 
 That is the direct path to more dependable software, and it fits naturally inside spec-driven development.
