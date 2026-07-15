@@ -148,7 +148,7 @@ When formal checking matters, express these with JML contracts too:
 - `invariant`
 - `assignable`
 
-Reason: assertions turn vague intent into executable truth claims. They catch programmer mistakes early and amplify the power of fuzzing, property testing, and bounded checking.
+Reason: assertions turn vague intent into executable truth claims. They catch programmer mistakes early and amplify the power of fuzzing, metamorhpic testing, property testing, and bounded checking.
 
 ### 8. Make arithmetic and units explicit.
 
@@ -170,6 +170,7 @@ Every important subsystem should admit a small reference model and a production 
 - Keep core logic independent from direct I/O.
 - Differential-test production against the model.
 - Test histories, not only single calls.
+- Expand tests with metamorphic relations.
 - Inject failures deliberately: retries, partial progress, reordering, timeouts, corruption, crash/recovery.
 - Turn every counterexample into a permanent regression test.
 
@@ -446,6 +447,7 @@ Rules:
 - Is core logic isolated from direct I/O, time, randomness, and external effects?
 - Can the code be simulated, replayed, differentially tested, or fault-injected?
 - Are histories tested, not just individual functions?
+- Are simple tests expanded with metamorphic relations?
 - Is concurrency explicit, bounded, and documented in terms of ownership and ordering?
 - If state is shared, are the synchronization discipline and invariants obvious?
 - Is the hot path allocation-free or close to it where performance matters?

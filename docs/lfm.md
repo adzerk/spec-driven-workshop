@@ -4,7 +4,7 @@ This guide explains how lightweight formal methods fit into a spec-driven workfl
 
 Lightweight formal methods are not about proving an entire system correct. They are about making the critical parts of a system explicit enough that they can be checked mechanically and evolved safely. Many costly failures begin in requirements, assumptions, and design, well before code is produced. So the goal is not universal proof -- The goal is to identify the critical properties, produce direct evidence that they hold, and keep that evidence alive as the system changes.
 
-Recent industrial examples converge on the same pattern. Brooker emphasizes [invariant-first reasoning](https://brooker.co.za/blog/2023/07/28/ds-testing.html). AWS/S3 shows that a live product team can [use executable reference models](https://www.amazon.science/publications/using-lightweight-formal-methods-to-validate-a-key-value-storage-node-in-amazon-s3) and automated checks without aiming for full formal verification. Cedar shows [verification-guided development](https://www.amazon.science/publications/how-we-built-cedar-a-verification-guided-approach) around an executable model, proofs, differential random testing, and property-based testing. Datadog/`redis-rust` shows the [same idea in the age of agents](https://www.datadoghq.com/blog/ai/harness-first-agents/): generated code must answer to objective, mechanical pass/fail checks, and the verification harness matters as much as the implementation.
+Recent industrial examples converge on the same pattern. Brooker emphasizes [invariant-first reasoning](https://brooker.co.za/blog/2023/07/28/ds-testing.html). AWS/S3 shows that a live product team can [use executable reference models](https://www.amazon.science/publications/using-lightweight-formal-methods-to-validate-a-key-value-storage-node-in-amazon-s3) and automated checks without aiming for full formal verification. Cedar shows [verification-guided development](https://www.amazon.science/publications/how-we-built-cedar-a-verification-guided-approach) around an executable model, proofs, differential random testing, metamorphic testing and property-based testing. Datadog/`redis-rust` shows the [same idea in the age of agents](https://www.datadoghq.com/blog/ai/harness-first-agents/): generated code must answer to objective, mechanical pass/fail checks, and the verification harness matters as much as the implementation.
 
 In a spec-driven and agent-assisted workflow, this matters even more. Code is cheaper to generate, but trust is not.
 
@@ -237,7 +237,7 @@ The spec.md artifact can be further enhanced by embedding an Alloy model of the 
 
 ### Implement
 
-Have the agent implement against the spec using `/opsx-apply`, not against an underspecified feature request. Require documented preconditions, postconditions, and invariants. Keep the core deterministic. Push time, I/O, randomness, and scheduling to the edges. Generate the unit tests, property-tests, and contracts alongside the code. Code must always be accompanied with its evidence.
+Have the agent implement against the spec using `/opsx-apply`, not against an underspecified feature request. Require documented preconditions, postconditions, and invariants. Keep the core deterministic. Push time, I/O, randomness, and scheduling to the edges. Generate the unit tests (expanded into metamorphic tests), property-tests, and contracts alongside the code. Code must always be accompanied with its evidence.
 Have the agent tag tests with the `Scenario` or invariant being exercised.
 
 ### Review with agents
