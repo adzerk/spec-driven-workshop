@@ -13,14 +13,41 @@
 #   - Only the project directory is mounted (read-write)
 #   - /var is NEVER mounted
 #   - No home directory credentials are exposed
-#   - Do git push/pull OUTSIDE this orchard
+#   - git push/pull from inside this orchard is discouraged, even with
+#     GH_TOKEN exported (below) — prefer doing push/pull OUTSIDE the orchard
 #   - Never put secrets, credentials, or passwords in the orchard
+#
+# Optional GitHub tokens (export on the host before running; never passed via
+# -e, so they don't leak into this process's argv on multi-user hosts):
+#   GH_TOKEN     — fine-grained PAT (repo read + PR read/write). Enables `gh`
+#                  CLI and git push/pull inside the orchard. Read directly
+#                  from the environment by `gh` — never written to disk.
+#                  The PAT itself should be scoped WITHOUT "Contents: write"
+#                  so push is rejected by GitHub even though this script
+#                  wires it up — push/pull is a token-configuration concern,
+#                  not something this script enforces.
+#   GITHUB_TOKEN — classic PAT (read:packages scope). Used once, transiently,
+#                  to install the @adzerk-scoped libjs-cli package, then
+#                  discarded for the rest of the session.
 ###############################################################################
 
 set -euo pipefail
 
 IMAGE_NAME="spec-workshop-orchard"
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Resolve $0 to its real location, following symlinks (e.g. a `orchard` shim
+# on PATH pointing at this script from elsewhere) — `dirname "$0"` alone
+# would resolve to the symlink's own directory, not this script's, and
+# silently point Dockerfile.orchard lookups at the wrong place.
+_src="${BASH_SOURCE[0]:-$0}"
+while [[ -h "$_src" ]]; do
+    _dir="$(cd -P "$(dirname "$_src")" && pwd)"
+    _src="$(readlink "$_src")"
+    [[ "$_src" != /* ]] && _src="${_dir}/${_src}"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$_src")" && pwd)"
+unset _src _dir
+
 PROJECT_DIR="$(pwd)"
 CONTAINER_NAME="SWO-$(basename "$PROJECT_DIR")-$$"
 
@@ -82,7 +109,14 @@ fi
 # ── Launch the container ──────────────────────────────────────────────────────
 info "Entering the orchard..."
 info "Project mounted at: /workspace"
-warn "Remember: do git push/pull OUTSIDE the orchard!"
+if [[ -n "${GH_TOKEN:-}" ]]; then
+    # git push/pull will work here IF the PAT is scoped to allow it — but push/pull
+    # from inside the orchard is discouraged; scope the fine-grained PAT without
+    # "Contents: write" so it can't, and do push/pull outside the orchard instead.
+    info "GH_TOKEN detected — git push/pull and 'gh' commands will work inside the orchard (push/pull discouraged; scope the PAT to prevent it)."
+else
+    warn "Remember: do git push/pull OUTSIDE the orchard! (or export GH_TOKEN to enable it inside)"
+fi
 echo ""
 
 # The macOS tooling JDK can't run on Linux. We overlay it with a tmpfs
@@ -93,9 +127,6 @@ if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
 fi
 if [[ -n "${OPENAI_API_KEY:-}" ]]; then
     AGENT_ENV+=(-e "OPENAI_API_KEY=${OPENAI_API_KEY}")
-fi
-if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    AGENT_ENV+=(-e "GITHUB_TOKEN=${GITHUB_TOKEN}")
 fi
 
 # Extract Claude Code OAuth credentials from macOS Keychain and pass them to the
@@ -120,6 +151,25 @@ if [[ -z "${ANTHROPIC_API_KEY:-}" ]] && command -v security &>/dev/null; then
         warn "No Claude Code credentials found in macOS Keychain."
         warn "Run 'claude' on the host and complete login first, or set ANTHROPIC_API_KEY."
     fi
+fi
+
+# GitHub tokens: routed through the same env-file mechanism (never -e), so the
+# raw values never appear in this `docker run` invocation's argv — which is
+# visible via `ps` to other users on multi-user hosts.
+#   GH_TOKEN     — fine-grained PAT. Used by `gh` CLI, git's credential helper,
+#                  and PR read/write. Read directly from the environment by
+#                  `gh` — never written to disk (see orchard-entry.sh). git
+#                  push/pull via this token is discouraged; the PAT should be
+#                  scoped without "Contents: write" so GitHub itself rejects
+#                  push, rather than relying on this script to prevent it.
+#   GITHUB_TOKEN — classic PAT. Used once, transiently, to install the
+#                  @adzerk-scoped libjs-cli package from GitHub Packages,
+#                  then unset for the rest of the session.
+if [[ -n "${GH_TOKEN:-}" || -n "${GITHUB_TOKEN:-}" ]]; then
+    [[ -z "$CREDS_ENV_FILE" ]] && CREDS_ENV_FILE=$(mktemp)
+    [[ -n "${GH_TOKEN:-}" ]] && printf 'GH_TOKEN=%s\n' "${GH_TOKEN}" >> "$CREDS_ENV_FILE"
+    [[ -n "${GITHUB_TOKEN:-}" ]] && printf 'GITHUB_TOKEN=%s\n' "${GITHUB_TOKEN}" >> "$CREDS_ENV_FILE"
+    chmod 600 "$CREDS_ENV_FILE"
 fi
 
 # Mount Claude Code user config (.claude.json) to a staging location.

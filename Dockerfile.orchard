@@ -8,7 +8,9 @@
 # SECURITY NOTES (from the workshop guide):
 #   - /var is NEVER mounted from the host
 #   - No credentials or secrets should enter this container
-#   - Do git push/pull OUTSIDE the container, on your host machine
+#   - git push/pull from inside this container is discouraged — prefer doing
+#     it OUTSIDE, on your host machine. Any GH_TOKEN PAT used inside should be
+#     scoped without "Contents: write" so push is rejected by GitHub itself.
 #   - The container only exists for the agent to do typing/coding
 ###############################################################################
 
@@ -29,6 +31,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gnupg \
     unzip \
     zip \
+    jq \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install GitHub CLI (used for `gh` operations and git's credential helper —
+# see orchard-entry.sh, which wires GH_TOKEN in without ever writing it to disk).
+# git push/pull via this is discouraged; rely on the PAT being scoped without
+# "Contents: write" to prevent it, not on this image.
+RUN mkdir -p -m 755 /etc/apt/keyrings \
+    && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+       -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+    && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+    && mkdir -p -m 755 /etc/apt/sources.list.d \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+       > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Eclipse Temurin JDK 21 (same family as the project's bundled JDK)
@@ -226,12 +244,29 @@ RUN useradd -m -s /bin/bash orchard \
     && mkdir -p /home/orchard/.config \
     && mkdir -p /home/orchard/.m2 \
     && mkdir -p /home/orchard/.claude \
+    && mkdir -p /home/orchard/.npm-global \
     && mkdir -p /repos \
     && cp -r /root/.m2/repository /home/orchard/.m2/repository \
     && chown -R orchard:orchard /home/orchard \
     && chown orchard:orchard /repos
 USER orchard
 WORKDIR /workspace
+
+# node/npm were installed as root via apt, so their default global prefix
+# (/usr/lib/node_modules) isn't writable by the non-root orchard user. Give
+# orchard its own global prefix so `npm install -g` at container-start time
+# (see orchard-entry.sh) doesn't need root.
+ENV PATH="/home/orchard/.npm-global/bin:${PATH}"
+
+# Scope @adzerk packages to GitHub Packages and point npm's global installs at
+# the writable prefix above. GITHUB_TOKEN is only ever present in the
+# environment transiently (see orchard-entry.sh) — it's never baked into this
+# file or any image layer.
+COPY --chown=orchard:orchard --chmod=644 <<'NPMRC' /home/orchard/.npmrc
+prefix=/home/orchard/.npm-global
+@adzerk:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+NPMRC
 
 # Set JAVA_HOME dynamically and launch bash
 COPY --chmod=755 <<'ENTRYPOINT' /usr/local/bin/orchard-entry.sh
@@ -322,6 +357,26 @@ if [ -f /tmp/codex-host-auth.json ]; then
     mkdir -p /home/orchard/.codex
     cp /tmp/codex-host-auth.json /home/orchard/.codex/auth.json
     chmod 600 /home/orchard/.codex/auth.json
+fi
+
+# GH_TOKEN (fine-grained PAT, read/write PRs + repo reads): `gh` reads it
+# straight out of the environment for every command, so nothing is ever
+# written to ~/.config/gh/hosts.yml. `gh auth setup-git` just points git's
+# credential helper at `gh auth git-credential`, which does the same
+# env-var read at push/pull time — so HTTPS git operations work too,
+# without ever persisting the token to disk. git push/pull is discouraged
+# even so — the PAT should be scoped without "Contents: write" so GitHub
+# rejects push regardless of this wiring.
+if [ -n "${GH_TOKEN:-}" ]; then
+    gh auth setup-git >/dev/null 2>&1 || true
+fi
+
+# GITHUB_TOKEN (classic PAT, GitHub Packages only): used solely to resolve
+# ~/.npmrc's ${GITHUB_TOKEN} reference for this one install. Unset immediately
+# after so it doesn't linger in the shell inherited by the rest of the session.
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+    npm install --global @adzerk/libjs-cli@1.0.17
+    unset GITHUB_TOKEN
 fi
 
 # The Makefile uses `JHOME =` (not ?=), so env vars get ignored.
