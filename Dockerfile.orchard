@@ -333,6 +333,18 @@ if [ -d "$OPENJML_DIR" ] && [ -d /opt/openjml-assets ]; then
     export OPENJML_SOLVERS="$OPENJML_DIR"
 fi
 
+# Git identity: passed through from the host's global git config by
+# orchard.sh. Set globally here since the container's $HOME doesn't persist
+# across sessions (no volume backs it), so this has to happen every time.
+if [ -n "${ORCHARD_GIT_USER_NAME:-}" ]; then
+    git config --global user.name "$ORCHARD_GIT_USER_NAME"
+    unset ORCHARD_GIT_USER_NAME
+fi
+if [ -n "${ORCHARD_GIT_USER_EMAIL:-}" ]; then
+    git config --global user.email "$ORCHARD_GIT_USER_EMAIL"
+    unset ORCHARD_GIT_USER_EMAIL
+fi
+
 # Copy Claude Code user config from the read-only staging mount.
 if [ -f /tmp/claude-host-config.json ]; then
     cp /tmp/claude-host-config.json /home/orchard/.claude.json

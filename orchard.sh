@@ -129,6 +129,24 @@ if [[ -n "${OPENAI_API_KEY:-}" ]]; then
     AGENT_ENV+=(-e "OPENAI_API_KEY=${OPENAI_API_KEY}")
 fi
 
+# Git identity: pulled from the host machine's global git config and set
+# globally inside the orchard by the entrypoint. The container's $HOME is
+# ephemeral (torn down with the container on exit — see --rm below), so
+# without this, every session needs `git config --global user.name/email`
+# set by hand before a commit (e.g. from VS Code's Source Control panel)
+# will work. Not a secret, so plain -e is fine (unlike GH_TOKEN below).
+HOST_GIT_USER_NAME=$(git config --global user.name 2>/dev/null || true)
+HOST_GIT_USER_EMAIL=$(git config --global user.email 2>/dev/null || true)
+if [[ -n "$HOST_GIT_USER_NAME" ]]; then
+    AGENT_ENV+=(-e "ORCHARD_GIT_USER_NAME=${HOST_GIT_USER_NAME}")
+fi
+if [[ -n "$HOST_GIT_USER_EMAIL" ]]; then
+    AGENT_ENV+=(-e "ORCHARD_GIT_USER_EMAIL=${HOST_GIT_USER_EMAIL}")
+fi
+if [[ -z "$HOST_GIT_USER_NAME" || -z "$HOST_GIT_USER_EMAIL" ]]; then
+    warn "Host git identity (user.name/user.email) not fully set — commits inside the orchard may fail until you set it there."
+fi
+
 # Extract Claude Code OAuth credentials from macOS Keychain and pass them to the
 # container via a temp file (not a -e env var, which would be visible in docker inspect).
 # Claude Code stores its OAuth session in the keychain under "Claude Code-credentials".
