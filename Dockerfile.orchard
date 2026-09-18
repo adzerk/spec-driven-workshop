@@ -83,6 +83,15 @@ RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
 # Install opencode, openspec, Claude Code, and Codex
 RUN npm install -g opencode-ai@latest @fission-ai/openspec @anthropic-ai/claude-code @openai/codex
 
+# Install Bun (needed to run integration-tests' own Bun-based tooling, and
+# minikevel's Bun-based CLI for anything that doesn't require Docker itself,
+# e.g. reading config). Installed system-wide at image build time — not via
+# the entrypoint — so it persists across sessions rather than needing a
+# reinstall (and re-download) on every container start.
+RUN curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local/share/bun bash \
+    && ln -s /usr/local/share/bun/bin/bun /usr/local/bin/bun \
+    && chmod -R a+rX /usr/local/share/bun
+
 # Build Fray JVMTI agent for linux-aarch64 (not published to Maven Central)
 # Then install it into the system Maven repo so the project can resolve it.
 ARG FRAY_VERSION=0.7.3

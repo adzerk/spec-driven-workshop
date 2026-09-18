@@ -16,6 +16,17 @@
 #   - git push/pull from inside this orchard is discouraged, even with
 #     GH_TOKEN exported (below) — prefer doing push/pull OUTSIDE the orchard
 #   - Never put secrets, credentials, or passwords in the orchard
+#   - No Docker CLI, no docker.sock, no --privileged, no DinD — by design.
+#     This container can never build, start, or stop Docker containers
+#     itself. To work against a docker-compose stack (e.g. minikevel),
+#     start/stop it on the HOST, outside orchard, and either:
+#       - pass -n/--network <name> to orchardw.sh to join that stack's
+#         existing Docker network (see ORCHARD_NETWORK below) so orchard can
+#         reach its services by container name, or
+#       - reach a host-native process (e.g. a service run outside Docker)
+#         via host.docker.internal, which this script always maps.
+#     Never "fix" a networking gap by adding docker.sock/CLI/--privileged
+#     back in — that's root-equivalent host access and defeats the sandbox.
 #
 # Optional GitHub tokens (export on the host before running; never passed via
 # -e, so they don't leak into this process's argv on multi-user hosts):
@@ -29,6 +40,15 @@
 #   GITHUB_TOKEN — classic PAT (read:packages scope). Used once, transiently,
 #                  to install the @adzerk-scoped libjs-cli package, then
 #                  discarded for the rest of the session.
+#
+# Optional networking (set by orchardw.sh, not meant to be hand-exported):
+#   ORCHARD_NETWORK — name of an existing Docker network to join (via
+#                      `docker run --network`), e.g. a docker-compose stack's
+#                      network started on the host before orchard runs. Lets
+#                      orchard reach that stack's services by container name.
+#                      Must already exist — orchard never creates or manages
+#                      Docker networks/containers itself. Set via
+#                      `orchardw -n <name>`.
 ###############################################################################
 
 set -euo pipefail
@@ -71,6 +91,19 @@ fi
 if ! docker info &>/dev/null 2>&1; then
     error "Docker daemon is not running. Please start Docker Desktop."
     exit 1
+fi
+
+# If a network to join was requested (see ORCHARD_NETWORK above), it must
+# already exist — orchard never creates or manages Docker networks itself.
+# Fail fast with a clear message instead of letting `docker run` below error
+# out cryptically.
+if [[ -n "${ORCHARD_NETWORK:-}" ]]; then
+    if ! docker network inspect "$ORCHARD_NETWORK" &>/dev/null 2>&1; then
+        error "Docker network '${ORCHARD_NETWORK}' not found."
+        echo "  Start the stack that owns this network first (e.g. minikevel's" >&2
+        echo "  'docker compose up' on the host, outside orchard), then retry." >&2
+        exit 1
+    fi
 fi
 
 # ── Build the image if it doesn't exist (or if Dockerfile changed) ────────────
@@ -269,6 +302,14 @@ if [[ ${#EXTRA_CONTAINER_PATHS[@]} -gt 0 ]]; then
 else
     [[ -f "$WORKSPACE_FILE" ]] && rm -f "$WORKSPACE_FILE"
 fi
+# Network to join (e.g. minikevel's compose network) — see ORCHARD_NETWORK
+# above. Leaving this unset preserves the previous default bridge behavior.
+NETWORK_ARGS=()
+if [[ -n "${ORCHARD_NETWORK:-}" ]]; then
+    NETWORK_ARGS=(--network "$ORCHARD_NETWORK")
+    info "Joining Docker network '${ORCHARD_NETWORK}' — its services are reachable by container name."
+fi
+
 unset WORKSPACE_FILE
 
 docker run \
@@ -289,6 +330,8 @@ docker run \
     --cap-drop ALL \
     --cap-add DAC_OVERRIDE \
     --cap-add FOWNER \
+    ${NETWORK_ARGS[@]+"${NETWORK_ARGS[@]}"} \
+    --add-host host.docker.internal:host-gateway \
     ${AGENT_ENV[@]+"${AGENT_ENV[@]}"} \
     -e "ORCHARD_PROJECT=$(basename "$PROJECT_DIR")" \
     -e 'PROMPT_COMMAND=PS1="(\[\033[1;32m\]\u@\h\[\033[0m\])[\[\033[1;34m\]${ORCHARD_PROJECT}\[\033[0m\]] \w\$ "' \
