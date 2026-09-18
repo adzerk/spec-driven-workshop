@@ -63,7 +63,20 @@ Orchard is a Docker-based sandbox for macOS users. It builds an Ubuntu container
 
 The first run builds the Docker image (this takes a few minutes). Subsequent runs reuse the cached image. The container mounts only the project directory at `/workspace` — no home directory credentials or `/var` are exposed.
 
-**Important:** Do `git push` / `git pull` *outside* the orchard, on your host machine.
+**Important:** `git push` / `git pull` from inside the orchard is discouraged — prefer doing them *outside*, on your host machine. Exporting `GH_TOKEN` (see below) wires git's credential helper inside the container too, so whether push/pull actually works there depends on how the PAT itself is scoped — scope it without "Contents: write" so GitHub rejects push regardless.
+
+#### Optional: GitHub access inside the orchard
+
+Export these on the host before running `./orchard.sh` — they're forwarded into the container via a secure temp env-file (never as a `-e` flag, which would leak the raw value into this shell's process listing):
+
+| Variable | Token type | Used for |
+|---|---|---|
+| `GH_TOKEN` | Fine-grained PAT (repo read + PR read/write) | `gh` CLI, git push/pull (via `gh auth setup-git`). Read directly from the environment by `gh` — never written to disk. |
+| `GITHUB_TOKEN` | Classic PAT (`read:packages` scope) | Installs the `@adzerk`-scoped `libjs-cli` package from GitHub Packages. Used once at container start, then discarded for the rest of the session. |
+
+Neither variable is required — omit them and the orchard behaves as before (fully isolated, no GitHub access).
+
+git push/pull via `GH_TOKEN` is discouraged even when the token is present — scope the fine-grained PAT without "Contents: write" so push is rejected by GitHub itself, rather than relying on the orchard to prevent it.
 
 ### Using Bubblewrap / `bwrap` (Linux)
 
