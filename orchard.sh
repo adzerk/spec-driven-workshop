@@ -248,7 +248,6 @@ fi
 # Volume name: orchard-claude-<basename>-<8-char hash of full path>
 _vol_suffix=$(printf '%s' "$PROJECT_DIR" | md5 -q | cut -c1-8)
 CLAUDE_VOLUME="orchard-claude-$(basename "$PROJECT_DIR")-${_vol_suffix}"
-unset _vol_suffix
 if ! docker volume inspect "$CLAUDE_VOLUME" &>/dev/null 2>&1; then
     docker volume create "$CLAUDE_VOLUME" > /dev/null
     # Docker creates new volume mount points as root:root. Fix ownership so the
@@ -262,6 +261,29 @@ if ! docker volume inspect "$CLAUDE_VOLUME" &>/dev/null 2>&1; then
     info "Created persistent Claude volume: ${CLAUDE_VOLUME}"
 else
     info "Using existing Claude volume: ${CLAUDE_VOLUME}"
+fi
+
+# ── Per-project persistent opencode volume ───────────────────────────────────
+# Same scheme as the Claude volume, for ~/.local/share/opencode. This is where
+# opencode keeps auth.json (e.g. the OpenAI/ChatGPT OAuth login from
+# `opencode auth login`) plus its sessions DB. Without it, the container's
+# --rm discards the login on exit; with it, refreshed tokens persist and you
+# only log in again once the refresh token itself expires or is revoked.
+# Login happens inside the orchard — no host credentials are mounted.
+# Volume name: orchard-opencode-<basename>-<8-char hash of full path>
+OPENCODE_VOLUME="orchard-opencode-$(basename "$PROJECT_DIR")-${_vol_suffix}"
+unset _vol_suffix
+if ! docker volume inspect "$OPENCODE_VOLUME" &>/dev/null 2>&1; then
+    docker volume create "$OPENCODE_VOLUME" > /dev/null
+    docker run --rm \
+        -v "${OPENCODE_VOLUME}:/home/orchard/.local/share/opencode" \
+        --user root \
+        --entrypoint "" \
+        "$IMAGE_NAME" \
+        chown orchard:orchard /home/orchard/.local/share/opencode
+    info "Created persistent opencode volume: ${OPENCODE_VOLUME}"
+else
+    info "Using existing opencode volume: ${OPENCODE_VOLUME}"
 fi
 
 # Extra bind mounts injected by callers (e.g. orchardw.sh).
@@ -322,6 +344,7 @@ docker run \
     ${CODEX_AUTH_MOUNT[@]+"${CODEX_AUTH_MOUNT[@]}"} \
     ${EXTRA_MOUNTS[@]+"${EXTRA_MOUNTS[@]}"} \
     -v "${CLAUDE_VOLUME}:/home/orchard/.claude" \
+    -v "${OPENCODE_VOLUME}:/home/orchard/.local/share/opencode" \
     ${CREDS_ENV_FILE:+--env-file "$CREDS_ENV_FILE"} \
     --tmpfs /workspace/tooling/jdk-21.0.7+6:exec,uid=1000,gid=1000 \
     --tmpfs /workspace/tooling/openjml:exec,uid=1000,gid=1000 \
